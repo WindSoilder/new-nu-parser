@@ -160,6 +160,16 @@ pub enum AstNode {
         initializer: NodeId,
         is_mutable: bool,
     },
+    Const {
+        variable_name: NodeId,
+        ty: Option<NodeId>,
+        initializer: NodeId,
+    },
+    Use {
+        module_name: NodeId,
+        members: Option<Vec<NodeId>>,
+    },
+
     While {
         condition: NodeId,
         block: NodeId,
