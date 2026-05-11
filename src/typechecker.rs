@@ -318,6 +318,11 @@ impl<'a> Typechecker<'a> {
                 initializer,
                 is_mutable: _,
             } => self.typecheck_let(variable_name, ty, initializer, node_id),
+            AstNode::Const {
+                variable_name,
+                ty,
+                initializer,
+            } => self.typecheck_let(variable_name, ty, initializer, node_id),
             AstNode::Def {
                 name,
                 params,

@@ -317,6 +317,17 @@ impl<'a> Resolver<'a> {
                 self.resolve_node(initializer);
                 self.define_variable(variable_name, is_mutable)
             }
+            AstNode::Const {
+                variable_name,
+                ty,
+                initializer,
+            } => {
+                if let Some(ty) = ty {
+                    self.resolve_node(ty);
+                }
+                self.resolve_node(initializer);
+                self.define_variable(variable_name, false)
+            }
             AstNode::While { condition, block } => {
                 self.resolve_node(condition);
                 self.resolve_node(block);

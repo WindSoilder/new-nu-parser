@@ -1,0 +1,38 @@
+---
+source: src/test.rs
+assertion_line: 77
+expression: evaluate_example(path)
+input_file: tests/const_.nu
+---
+==== COMPILER ====
+0: Variable (6 to 7) "x"
+1: Int (10 to 13) "123"
+2: Const { variable_name: NodeId(0), ty: None, initializer: NodeId(1) } (0 to 13)
+3: Variable (15 to 17) "$x"
+4: Variable (25 to 26) "y"
+5: Int (29 to 32) "123"
+6: Int (35 to 38) "456"
+7: Pipeline(PipelineId(0)) (29 to 38)
+8: Const { variable_name: NodeId(4), ty: None, initializer: NodeId(7) } (19 to 38)
+9: Variable (40 to 42) "$y"
+10: Block(BlockId(0)) (0 to 43)
+==== SCOPE ====
+0: Frame Scope, node_id: NodeId(10)
+  variables: [ x: NodeId(0), y: NodeId(4) ]
+==== TYPES ====
+0: int
+1: int
+2: ()
+3: int
+4: int
+5: int
+6: int
+7: int
+8: ()
+9: int
+10: int
+==== IR ====
+register_count: 0
+file_count: 0
+==== IR ERRORS ====
+Error (NodeId 2): node Const { variable_name: NodeId(0), ty: None, initializer: NodeId(1) } not suported yet

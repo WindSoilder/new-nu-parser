@@ -273,6 +273,11 @@ pub enum AstNode {
         initializer: NodeId,
         is_mutable: bool,
     },
+    Const {
+        variable_name: NodeId,
+        ty: Option<NodeId>,
+        initializer: NodeId,
+    },
     While {
         condition: NodeId,
         block: NodeId,
@@ -1508,6 +1513,40 @@ impl Parser {
     }
 
     // TODO: Deduplicate code between let/mut/const assignments
+    pub fn const_statement(&mut self) -> NodeId {
+        let _span = span!();
+        let span_start = self.position();
+
+        self.keyword(b"const");
+
+        let variable_name = self.variable_decl();
+
+        let ty = if self.is_colon() {
+            self.colon();
+
+            Some(self.typename())
+        } else {
+            None
+        };
+
+        self.equals();
+
+        let initializer = self.pipeline_or_expression();
+
+        let span_end = self.get_span_end(initializer);
+
+        self.create_node(
+            AstNode::Const {
+                variable_name,
+                ty,
+                initializer,
+            },
+            span_start,
+            span_end,
+        )
+    }
+
+    // TODO: Deduplicate code between let/mut/const assignments
     pub fn mut_statement(&mut self) -> NodeId {
         let _span = span!();
         let is_mutable = true;
@@ -1579,6 +1618,8 @@ impl Parser {
                 code_body.push(self.def_statement());
             } else if self.is_keyword(b"let") {
                 code_body.push(self.let_statement());
+            } else if self.is_keyword(b"const") {
+                code_body.push(self.const_statement());
             } else if self.is_keyword(b"mut") {
                 code_body.push(self.mut_statement());
             } else if self.is_keyword(b"while") {
