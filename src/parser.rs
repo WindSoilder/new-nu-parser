@@ -326,11 +326,13 @@ pub enum AstNode {
     },
 
     /// Long flag ('--' + one or more letters)
-    FlagLong,
-    /// Short flag ('-' + single letter)
-    FlagShort,
-    /// Group of short flags ('-' + more than 1 letters)
-    FlagShortGroup,
+    FlagLong {
+        name: Option<NodeId>,
+    },
+    /// Short flag ('-' + one or more letters)
+    FlagShort {
+        name: NodeId,
+    },
 
     // Expressions
     Call(CallId),
@@ -749,6 +751,20 @@ impl Parser {
             // TODO: Add flags
 
             is_head = false;
+            if self.is_dash() {
+                parts.push(self.flag_short());
+                continue;
+            }
+
+            if self.is_dash_dash() {
+                parts.push(self.flag_long());
+                // just treat --flag=value as --flag value for now
+                // so they can be easily handle by resolver.
+                if self.is_equals() {
+                    self.tokens.advance();
+                }
+                continue;
+            }
             let arg_id = self.simple_expression(BarewordContext::String);
             parts.push(arg_id);
         }
@@ -2103,5 +2119,53 @@ impl Parser {
     fn apply_rollback(&mut self, rbp: RollbackPoint) {
         let token_pos = self.compiler.apply_compiler_rollback(rbp);
         self.tokens.set_pos(token_pos);
+    }
+
+    fn is_dash_dash(&self) -> bool {
+        self.tokens.peek_token() == Token::DashDash
+    }
+
+    fn flag_long(&mut self) -> NodeId {
+        let span_start = self.position();
+        if self.is_dash_dash() {
+            self.tokens.advance();
+            let span_end = self.position();
+            if self.is_name() {
+                let flag_name = self.name();
+                self.create_node(
+                    AstNode::FlagLong {
+                        name: Some(flag_name),
+                    },
+                    span_start,
+                    span_end,
+                )
+            } else if self.is_horizontal_space() {
+                self.create_node(AstNode::FlagLong { name: None }, span_start, span_end)
+            } else {
+                self.error("incomplete flag name")
+            }
+        } else {
+            self.error("expected flag")
+        }
+    }
+
+    fn is_dash(&self) -> bool {
+        self.tokens.peek_token() == Token::Dash
+    }
+
+    fn flag_short(&mut self) -> NodeId {
+        let span_start = self.position();
+        if self.is_dash() {
+            self.tokens.advance();
+            if self.is_name() {
+                let flag_name = self.name();
+                let span_end = self.position();
+                self.create_node(AstNode::FlagShort { name: flag_name }, span_start, span_end)
+            } else {
+                self.error("incomplete flag name")
+            }
+        } else {
+            self.error("expected flag")
+        }
     }
 }
