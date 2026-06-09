@@ -1,3 +1,6 @@
+use super::keyword_commands_prototype::{
+    Argument, Arguments, CommandSignature, OverlayNew, ParserCommand,
+};
 use crate::compiler::{Compiler, RollbackPoint, Span};
 use crate::errors::{Severity, SourceError};
 use crate::lexer::{Token, Tokens};
@@ -323,6 +326,10 @@ pub enum AstNode {
     Alias {
         new_name: NodeId,
         old_name: NodeId,
+    },
+    OverlayNew {
+        name: NodeId,
+        reload: bool,
     },
 
     /// Long flag ('--' + one or more letters)
@@ -1654,6 +1661,8 @@ impl Parser {
                 code_body.push(self.alias_statement());
             } else if self.is_keyword(b"extern") {
                 code_body.push(self.extern_statement());
+            } else if self.is_multiple_word_keyword(&[b"overlay", b"new"]) {
+                code_body.push(self.overlay_new_statement());
             } else {
                 let exp_span_start = self.position();
                 let pipeline = self.pipeline_or_expression_or_assignment();
@@ -1932,6 +1941,25 @@ impl Parser {
         }
     }
 
+    pub fn is_multiple_word_keyword(&mut self, keywords: &[&[u8]]) -> bool {
+        let keyword_iter = keywords.into_iter();
+        let mut nth = 0;
+        for k in keyword_iter {
+            if self.tokens.nth_is_end(nth) {
+                return false;
+            }
+            if let (Token::Bareword, span) = self.tokens.nth(nth) {
+                if self.compiler.get_span_contents_manual(span.start, span.end) != *k {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+            nth += 1;
+        }
+        true
+    }
+
     pub fn is_name(&mut self) -> bool {
         self.tokens.peek_token() == Token::Bareword
     }
@@ -2167,5 +2195,116 @@ impl Parser {
         } else {
             self.error("expected flag")
         }
+    }
+
+    pub fn overlay_new_statement(&mut self) -> NodeId {
+        let _span = span!();
+        let span_start = self.position();
+        self.keyword(b"overlay");
+        self.keyword(b"new");
+
+        let mut reload = false;
+        let overlay_new = OverlayNew;
+        let args = self.arguments(overlay_new.signature());
+        unreachable!()
+    }
+
+    fn arguments(&mut self, signature: CommandSignature) -> Arguments {
+        let _span = span!();
+        let span_start = self.position();
+        let mut visited_flags = std::collections::HashSet::new();
+        let mut args = Arguments::new();
+
+        loop {
+            if !self.has_tokens() {
+                break;
+            }
+            if self.is_newline() {
+                break;
+            }
+
+            if self.is_dash() {
+                let flag_node = self.flag_short();
+                let flag_node_kind = *self.compiler.get_node(flag_node);
+                let AstNode::FlagShort { name: flag_name } = flag_node_kind else {
+                    unreachable!("internal error: expected short flag node");
+                };
+                let flag_len = self.compiler.get_span_contents(flag_name).len();
+
+                // for every short flag, we need to check if it's in signature definition
+                for index in 0..flag_len {
+                    let flag_char = self.compiler.get_span_contents(flag_name)[index] as char;
+                    let Some(long_name) = signature.get_long_name_from_short(flag_char) else {
+                        self.error_on_node(
+                            format!("unexpected short flag: -{}", flag_char),
+                            flag_node,
+                        );
+                        continue;
+                    };
+
+                    // also check if it's already used.
+                    if !visited_flags.insert(long_name) {
+                        self.error_on_node(format!("duplicated flag: -{}", flag_char), flag_node);
+                    }
+                }
+                args.push(Argument::Flag(flag_node));
+                continue;
+            }
+
+            if self.is_dash_dash() {
+                let flag_node = self.flag_long();
+                let flag_node_kind = *self.compiler.get_node(flag_node);
+                let AstNode::FlagLong {
+                    name: flag_name_opt,
+                } = flag_node_kind
+                else {
+                    unreachable!("internal error: expected long flag node");
+                };
+                if flag_name_opt.is_none() {
+                    continue;
+                }
+
+                // for every long flag, we need to check if it's in signature definition
+                let long_name = {
+                    let content = self
+                        .compiler
+                        .get_span_contents(flag_name_opt.expect("already checked to be Some"));
+                    match signature.get_long_name_from_long(content) {
+                        Some(long_name) => Ok(long_name),
+                        None => Err(format!(
+                            "unexpected long flag: --{}",
+                            String::from_utf8_lossy(content)
+                        )),
+                    }
+                };
+
+                match long_name {
+                    Ok(long_name) => {
+                        if !visited_flags.insert(long_name) {
+                            self.error_on_node(
+                                format!(
+                                    "duplicated flag: --{}",
+                                    String::from_utf8_lossy(long_name)
+                                ),
+                                flag_node,
+                            );
+                        }
+                    }
+                    Err(message) => self.error_on_node(message, flag_node),
+                }
+                // just treat --flag=value as --flag value for now
+                // so they can be easily handle by resolver.
+                if self.is_equals() {
+                    self.tokens.advance();
+                }
+                continue;
+            }
+            let arg_id = self.simple_expression(BarewordContext::String);
+            args.push(Argument::Positional(arg_id));
+        }
+
+        let span_end = self.position();
+        args.set_span(span_start, span_end);
+        args
     }
 }

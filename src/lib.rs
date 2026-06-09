@@ -1,6 +1,7 @@
 pub mod compiler;
 pub mod errors;
 pub mod ir_generator;
+mod keyword_commands_prototype;
 pub mod lexer;
 pub mod parser;
 pub mod protocol;

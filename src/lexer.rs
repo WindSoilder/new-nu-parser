@@ -92,6 +92,21 @@ impl Tokens {
         self.spans[self.pos]
     }
 
+    pub fn nth_is_end(&self, n: usize) -> bool {
+        self.pos + n >= self.tokens.len()
+    }
+
+    pub fn nth(&self, n: usize) -> (Token, Span) {
+        (self.token_nth(n), self.span_nth(n))
+    }
+
+    pub fn token_nth(&self, n: usize) -> Token {
+        self.tokens[self.pos + n]
+    }
+
+    pub fn span_nth(&self, offset: usize) -> Span {
+        self.spans[self.pos + offset]
+    }
     // Printing
 
     /// Format the tokens into a human-readable output for debugging
