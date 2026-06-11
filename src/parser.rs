@@ -1,6 +1,3 @@
-use super::keyword_commands_prototype::{
-    Argument, Arguments, CommandSignature, OverlayNew, ParserCommand,
-};
 use crate::compiler::{Compiler, RollbackPoint, Span};
 use crate::errors::{Severity, SourceError};
 use crate::lexer::{Token, Tokens};
@@ -26,6 +23,9 @@ pub struct InOutTypesId(pub usize);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CallId(pub usize);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ArgumentsId(pub usize);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ListId(pub usize);
@@ -86,6 +86,17 @@ pub struct Call {
 impl Call {
     pub fn new(parts: Vec<NodeId>) -> Self {
         Self { parts }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Arguments {
+    pub nodes: Vec<NodeId>,
+}
+
+impl Arguments {
+    pub fn new(nodes: Vec<NodeId>) -> Self {
+        Self { nodes }
     }
 }
 
@@ -328,8 +339,10 @@ pub enum AstNode {
         old_name: NodeId,
     },
     OverlayNew {
-        name: NodeId,
-        reload: bool,
+        arguments: ArgumentsId,
+    },
+    PluginUse {
+        arguments: ArgumentsId,
     },
 
     /// Long flag ('--' + one or more letters)
@@ -742,7 +755,6 @@ impl Parser {
     pub fn call(&mut self) -> NodeId {
         let _span = span!();
         let mut parts = vec![self.call_name()];
-        let mut is_head = true;
         let span_start = self.position();
 
         while self.has_tokens() {
@@ -750,30 +762,13 @@ impl Parser {
                 break;
             }
 
-            if self.is_name() && is_head {
+            if self.is_name() {
                 parts.push(self.name());
                 continue;
             }
 
-            // TODO: Add flags
-
-            is_head = false;
-            if self.is_dash() {
-                parts.push(self.flag_short());
-                continue;
-            }
-
-            if self.is_dash_dash() {
-                parts.push(self.flag_long());
-                // just treat --flag=value as --flag value for now
-                // so they can be easily handle by resolver.
-                if self.is_equals() {
-                    self.tokens.advance();
-                }
-                continue;
-            }
-            let arg_id = self.simple_expression(BarewordContext::String);
-            parts.push(arg_id);
+            parts.extend(self.argument_nodes());
+            break;
         }
 
         let span_end = self.position();
@@ -1663,6 +1658,8 @@ impl Parser {
                 code_body.push(self.extern_statement());
             } else if self.is_multiple_word_keyword(&[b"overlay", b"new"]) {
                 code_body.push(self.overlay_new_statement());
+            } else if self.is_multiple_word_keyword(&[b"plugin", b"use"]) {
+                code_body.push(self.plugin_use_statement());
             } else {
                 let exp_span_start = self.position();
                 let pipeline = self.pipeline_or_expression_or_assignment();
@@ -2157,9 +2154,10 @@ impl Parser {
         let span_start = self.position();
         if self.is_dash_dash() {
             self.tokens.advance();
-            let span_end = self.position();
+            let dashdash_end = self.position();
             if self.is_name() {
-                let flag_name = self.name();
+                let flag_name = self.flag_long_name();
+                let span_end = self.get_span_end(flag_name);
                 self.create_node(
                     AstNode::FlagLong {
                         name: Some(flag_name),
@@ -2168,13 +2166,36 @@ impl Parser {
                     span_end,
                 )
             } else if self.is_horizontal_space() {
-                self.create_node(AstNode::FlagLong { name: None }, span_start, span_end)
+                self.create_node(AstNode::FlagLong { name: None }, span_start, dashdash_end)
             } else {
                 self.error("incomplete flag name")
             }
         } else {
             self.error("expected flag")
         }
+    }
+
+    fn flag_long_name(&mut self) -> NodeId {
+        let (token, mut span) = self.tokens.peek();
+        if token != Token::Bareword {
+            return self.error("expected: flag name");
+        }
+
+        self.tokens.advance();
+
+        while self.is_dash() && !self.is_horizontal_space() {
+            self.tokens.advance();
+
+            let (token, next_span) = self.tokens.peek();
+            if token != Token::Bareword || self.is_horizontal_space() {
+                return self.error("incomplete flag name");
+            }
+
+            self.tokens.advance();
+            span.end = next_span.end;
+        }
+
+        self.create_node(AstNode::Name, span.start, span.end)
     }
 
     fn is_dash(&self) -> bool {
@@ -2203,17 +2224,33 @@ impl Parser {
         self.keyword(b"overlay");
         self.keyword(b"new");
 
-        let mut reload = false;
-        let overlay_new = OverlayNew;
-        let args = self.arguments(overlay_new.signature());
-        unreachable!()
+        let arguments = self.arguments();
+        let span_end = self.position();
+
+        self.create_node(AstNode::OverlayNew { arguments }, span_start, span_end)
     }
 
-    fn arguments(&mut self, signature: CommandSignature) -> Arguments {
+    pub fn plugin_use_statement(&mut self) -> NodeId {
         let _span = span!();
         let span_start = self.position();
-        let mut visited_flags = std::collections::HashSet::new();
-        let mut args = Arguments::new();
+        self.keyword(b"plugin");
+        self.keyword(b"use");
+
+        let arguments = self.arguments();
+        let span_end = self.position();
+
+        self.create_node(AstNode::PluginUse { arguments }, span_start, span_end)
+    }
+
+    fn arguments(&mut self) -> ArgumentsId {
+        let parts = self.argument_nodes();
+        self.compiler.arguments.push(Arguments::new(parts));
+        ArgumentsId(self.compiler.arguments.len() - 1)
+    }
+
+    fn argument_nodes(&mut self) -> Vec<NodeId> {
+        let _span = span!();
+        let mut parts = Vec::new();
 
         loop {
             if !self.has_tokens() {
@@ -2224,74 +2261,12 @@ impl Parser {
             }
 
             if self.is_dash() {
-                let flag_node = self.flag_short();
-                let flag_node_kind = *self.compiler.get_node(flag_node);
-                let AstNode::FlagShort { name: flag_name } = flag_node_kind else {
-                    unreachable!("internal error: expected short flag node");
-                };
-                let flag_len = self.compiler.get_span_contents(flag_name).len();
-
-                // for every short flag, we need to check if it's in signature definition
-                for index in 0..flag_len {
-                    let flag_char = self.compiler.get_span_contents(flag_name)[index] as char;
-                    let Some(long_name) = signature.get_long_name_from_short(flag_char) else {
-                        self.error_on_node(
-                            format!("unexpected short flag: -{}", flag_char),
-                            flag_node,
-                        );
-                        continue;
-                    };
-
-                    // also check if it's already used.
-                    if !visited_flags.insert(long_name) {
-                        self.error_on_node(format!("duplicated flag: -{}", flag_char), flag_node);
-                    }
-                }
-                args.push(Argument::Flag(flag_node));
+                parts.push(self.flag_short());
                 continue;
             }
 
             if self.is_dash_dash() {
-                let flag_node = self.flag_long();
-                let flag_node_kind = *self.compiler.get_node(flag_node);
-                let AstNode::FlagLong {
-                    name: flag_name_opt,
-                } = flag_node_kind
-                else {
-                    unreachable!("internal error: expected long flag node");
-                };
-                if flag_name_opt.is_none() {
-                    continue;
-                }
-
-                // for every long flag, we need to check if it's in signature definition
-                let long_name = {
-                    let content = self
-                        .compiler
-                        .get_span_contents(flag_name_opt.expect("already checked to be Some"));
-                    match signature.get_long_name_from_long(content) {
-                        Some(long_name) => Ok(long_name),
-                        None => Err(format!(
-                            "unexpected long flag: --{}",
-                            String::from_utf8_lossy(content)
-                        )),
-                    }
-                };
-
-                match long_name {
-                    Ok(long_name) => {
-                        if !visited_flags.insert(long_name) {
-                            self.error_on_node(
-                                format!(
-                                    "duplicated flag: --{}",
-                                    String::from_utf8_lossy(long_name)
-                                ),
-                                flag_node,
-                            );
-                        }
-                    }
-                    Err(message) => self.error_on_node(message, flag_node),
-                }
+                parts.push(self.flag_long());
                 // just treat --flag=value as --flag value for now
                 // so they can be easily handle by resolver.
                 if self.is_equals() {
@@ -2300,11 +2275,9 @@ impl Parser {
                 continue;
             }
             let arg_id = self.simple_expression(BarewordContext::String);
-            args.push(Argument::Positional(arg_id));
+            parts.push(arg_id);
         }
 
-        let span_end = self.position();
-        args.set_span(span_start, span_end);
-        args
+        parts
     }
 }

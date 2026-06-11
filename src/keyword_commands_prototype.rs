@@ -1,85 +1,113 @@
-use std::collections::HashMap;
+use crate::parser::NodeId;
 
-use crate::{compiler::Span, parser::NodeId};
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FlagArg {
+    Switch,
+    RequiredValue { name: &'static [u8] },
+}
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Flag {
-    long: Vec<u8>,
-    short: Option<char>,
+    pub long: &'static [u8],
+    pub short: Option<u8>,
+    pub arg: FlagArg,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Positional {
-    name: Vec<u8>,
-    optional: bool,
+    pub name: &'static [u8],
+    pub optional: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CommandSignature {
-    flags: Vec<Flag>,
-    positionals: Vec<Positional>,
+    pub flags: &'static [Flag],
+    pub positionals: &'static [Positional],
 }
 
 impl CommandSignature {
-    pub fn get_long_flag(&self, name: &[u8]) -> Option<&Flag> {
-        self.flags.iter().find(|flag| flag.long == name)
+    pub fn find_long_flag(&self, name: &[u8]) -> Option<(usize, &Flag)> {
+        self.flags
+            .iter()
+            .enumerate()
+            .find(|(_, flag)| flag.long == name)
     }
 
-    pub fn get_long_name_from_long(&self, name: &[u8]) -> Option<&[u8]> {
-        self.get_long_flag(name).map(|flag| flag.long.as_slice())
-    }
-
-    pub fn get_long_name_from_short(&self, short: char) -> Option<&[u8]> {
-        self.get_short_flag(short).map(|flag| flag.long.as_slice())
-    }
-
-    pub fn get_short_flag(&self, short: char) -> Option<&Flag> {
-        self.flags.iter().find(|flag| flag.short == Some(short))
+    pub fn find_short_flag(&self, short: u8) -> Option<(usize, &Flag)> {
+        self.flags
+            .iter()
+            .enumerate()
+            .find(|(_, flag)| flag.short == Some(short))
     }
 }
 
-struct OverlayNew;
-
-trait ParserCommand {
-    fn signature(&self) -> CommandSignature;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BoundFlag {
+    Switch { flag: NodeId },
+    Value { flag: NodeId, value: NodeId },
 }
 
-impl ParserCommand for OverlayNew {
-    fn signature(&self) -> CommandSignature {
-        CommandSignature {
-            flags: vec![Flag {
-                long: b"reload".to_vec(),
-                short: Some('r'),
-            }],
-            positionals: vec![Positional {
-                name: b"overlay_name".to_vec(),
-                optional: false,
-            }],
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BoundArguments {
+    pub flags: Vec<Option<BoundFlag>>,
+    pub positionals: Vec<Option<NodeId>>,
+}
+
+impl BoundArguments {
+    pub fn new(signature: &CommandSignature) -> Self {
+        Self {
+            flags: vec![None; signature.flags.len()],
+            positionals: vec![None; signature.positionals.len()],
         }
     }
 }
 
-// --------- Argument
-pub enum Argument {
-    Flag(NodeId),
-    Positional(NodeId),
+const OVERLAY_NEW_FLAGS: &[Flag] = &[Flag {
+    long: b"reload",
+    short: Some(b'r'),
+    arg: FlagArg::Switch,
+}];
+
+const OVERLAY_NEW_POSITIONALS: &[Positional] = &[Positional {
+    name: b"overlay_name",
+    optional: false,
+}];
+
+const OVERLAY_NEW_SIGNATURE: CommandSignature = CommandSignature {
+    flags: OVERLAY_NEW_FLAGS,
+    positionals: OVERLAY_NEW_POSITIONALS,
+};
+
+pub struct OverlayNew;
+
+impl OverlayNew {
+    pub fn signature() -> &'static CommandSignature {
+        &OVERLAY_NEW_SIGNATURE
+    }
 }
 
-pub struct Arguments {
-    inner: HashMap<Vec<u8>, Argument>,
-    span: Span,
-}
+const PLUGIN_USE_FLAGS: &[Flag] = &[Flag {
+    long: b"plugin-config",
+    short: None,
+    arg: FlagArg::RequiredValue {
+        name: b"plugin-config",
+    },
+}];
 
-impl Arguments {
-    pub fn new() -> Self {
-        Arguments {
-            inner: Vec::new(),
-            span: Span::new(0, 0),
-        }
-    }
+const PLUGIN_USE_POSITIONALS: &[Positional] = &[Positional {
+    name: b"name",
+    optional: false,
+}];
 
-    pub fn set_span(&mut self, start: usize, end: usize) {
-        self.span = Span::new(start, end);
-    }
+const PLUGIN_USE_SIGNATURE: CommandSignature = CommandSignature {
+    flags: PLUGIN_USE_FLAGS,
+    positionals: PLUGIN_USE_POSITIONALS,
+};
 
-    pub fn push(&mut self, arg: Argument) {
-        self.inner.push(arg);
+pub struct PluginUse;
+
+impl PluginUse {
+    pub fn signature() -> &'static CommandSignature {
+        &PLUGIN_USE_SIGNATURE
     }
 }

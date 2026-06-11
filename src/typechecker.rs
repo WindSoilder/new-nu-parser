@@ -3,6 +3,7 @@
 
 use crate::compiler::Compiler;
 use crate::errors::{Severity, SourceError};
+use crate::keyword_commands_prototype::BoundFlag;
 use crate::parser::{AstNode, NodeId};
 use crate::resolver::{TypeDecl, TypeDeclId};
 use std::cmp::Ordering;
@@ -332,6 +333,10 @@ impl<'a> Typechecker<'a> {
             } => self.typecheck_def(name, params, in_out_types, block, node_id),
             AstNode::Alias { new_name, old_name } => {
                 self.typecheck_alias(new_name, old_name, node_id)
+            }
+            AstNode::OverlayNew { .. } | AstNode::PluginUse { .. } => {
+                self.typecheck_signature_arguments(node_id);
+                self.set_node_type_id(node_id, NONE_TYPE);
             }
             AstNode::For {
                 variable,
@@ -958,6 +963,34 @@ impl<'a> Typechecker<'a> {
         self.variable_types[var_id.0] = type_id;
         self.set_node_type_id(variable_name, type_id);
         self.set_node_type_id(node_id, NONE_TYPE);
+    }
+
+    fn typecheck_signature_arguments(&mut self, node_id: NodeId) {
+        let Some(bound_arguments) = self
+            .compiler
+            .signature_argument_bindings
+            .get(&node_id)
+            .cloned()
+        else {
+            self.error("missing resolved signature arguments", node_id);
+            return;
+        };
+
+        for flag in bound_arguments.flags.into_iter().flatten() {
+            match flag {
+                BoundFlag::Switch { flag } => {
+                    self.set_node_type_id(flag, FORBIDDEN_TYPE);
+                }
+                BoundFlag::Value { flag, value } => {
+                    self.set_node_type_id(flag, FORBIDDEN_TYPE);
+                    self.typecheck_expr(value, TOP_TYPE);
+                }
+            }
+        }
+
+        for positional in bound_arguments.positionals.into_iter().flatten() {
+            self.typecheck_expr(positional, TOP_TYPE);
+        }
     }
 
     fn typecheck_type(&mut self, node_id: NodeId) -> TypeId {

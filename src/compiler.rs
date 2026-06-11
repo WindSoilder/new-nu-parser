@@ -1,7 +1,8 @@
 use crate::errors::SourceError;
+use crate::keyword_commands_prototype::BoundArguments;
 use crate::parser::{
-    AstNode, Block, Call, InOutTypes, List, Match, NodeId, Params, Pipeline, Record, Table,
-    TypeArgs,
+    Arguments, ArgumentsId, AstNode, Block, Call, InOutTypes, List, Match, NodeId, Params,
+    Pipeline, Record, Table, TypeArgs,
 };
 use crate::protocol::Command;
 use crate::resolver::{
@@ -18,6 +19,7 @@ pub struct RollbackPoint {
     idx_params: usize,
     idx_in_out_types: usize,
     idx_calls: usize,
+    idx_arguments: usize,
     idx_lists: usize,
     idx_tables: usize,
     idx_records: usize,
@@ -61,6 +63,7 @@ pub struct Compiler {
     pub params: Vec<Params>,           // Params, indexed by ParamsId
     pub in_out_types: Vec<InOutTypes>, // InOutTypes, indexed by InOutTypesId
     pub calls: Vec<Call>,              // Calls, indexed by CallId
+    pub arguments: Vec<Arguments>,     // Arguments, indexed by ArgumentsId
     pub lists: Vec<List>,              // Lists, indexed by ListId
     pub tables: Vec<Table>,            // Tables, indexed by TableId
     pub records: Vec<Record>,          // Records, indexed by RecordId
@@ -89,6 +92,8 @@ pub struct Compiler {
     pub decl_nodes: Vec<NodeId>,
     /// Mapping of decl's name node -> Command
     pub decl_resolution: HashMap<NodeId, DeclId>,
+    /// Nodes resolved through signature-based argument binding
+    pub signature_argument_bindings: HashMap<NodeId, BoundArguments>,
 
     // Definitions:
     // indexed by FunId
@@ -117,6 +122,7 @@ impl Compiler {
             params: vec![],
             in_out_types: vec![],
             calls: vec![],
+            arguments: vec![],
             lists: vec![],
             tables: vec![],
             records: vec![],
@@ -135,6 +141,7 @@ impl Compiler {
             decls: vec![],
             decl_nodes: vec![],
             decl_resolution: HashMap::new(),
+            signature_argument_bindings: HashMap::new(),
 
             // variables: vec![],
             // functions: vec![],
@@ -197,6 +204,8 @@ impl Compiler {
         self.decls.extend(name_bindings.decls);
         self.decl_nodes.extend(name_bindings.decl_nodes);
         self.decl_resolution.extend(name_bindings.decl_resolution);
+        self.signature_argument_bindings
+            .extend(name_bindings.signature_argument_bindings);
         self.errors.extend(name_bindings.errors);
     }
 
@@ -241,6 +250,7 @@ impl Compiler {
             idx_params: self.params.len(),
             idx_in_out_types: self.in_out_types.len(),
             idx_calls: self.calls.len(),
+            idx_arguments: self.arguments.len(),
             idx_lists: self.lists.len(),
             idx_tables: self.tables.len(),
             idx_records: self.records.len(),
@@ -255,6 +265,7 @@ impl Compiler {
         self.params.truncate(rbp.idx_params);
         self.in_out_types.truncate(rbp.idx_in_out_types);
         self.calls.truncate(rbp.idx_calls);
+        self.arguments.truncate(rbp.idx_arguments);
         self.lists.truncate(rbp.idx_lists);
         self.tables.truncate(rbp.idx_tables);
         self.records.truncate(rbp.idx_records);
@@ -342,6 +353,10 @@ impl Compiler {
             );
         };
         &self.calls[call_id.0]
+    }
+
+    pub fn get_arguments(&self, arguments_id: ArgumentsId) -> &Arguments {
+        &self.arguments[arguments_id.0]
     }
 
     pub fn get_list(&self, node_id: NodeId) -> &List {

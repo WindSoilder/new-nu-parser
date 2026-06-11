@@ -1,5 +1,7 @@
 use crate::ir_generator::IrGenerator;
+use crate::keyword_commands_prototype::BoundFlag;
 use crate::lexer::lex;
+use crate::parser::AstNode;
 use crate::resolver::Resolver;
 use crate::typechecker::Typechecker;
 use crate::{compiler::Compiler, parser::Parser};
@@ -83,4 +85,124 @@ fn test_lexer() {
     insta::glob!("../tests/lex", "*.nu", |path| {
         insta::assert_snapshot!(evaluate_lexer(path));
     });
+}
+
+#[test]
+fn test_overlay_new_keyword_arguments_are_bound_in_resolver() {
+    let mut compiler = Compiler::new();
+    let contents = b"overlay new --reload spam\n";
+    compiler.add_file("test", contents);
+
+    let (tokens, err) = lex(contents, 0);
+    assert!(err.is_ok());
+
+    let parser = Parser::new(compiler, tokens);
+    compiler = parser.parse();
+    assert!(compiler.errors.is_empty());
+
+    let mut resolver = Resolver::new(&compiler);
+    resolver.resolve();
+    assert!(resolver.errors.is_empty());
+
+    let overlay_new = compiler
+        .ast_nodes
+        .iter()
+        .enumerate()
+        .find_map(|(idx, node)| {
+            matches!(node, AstNode::OverlayNew { .. }).then_some(crate::parser::NodeId(idx))
+        })
+        .expect("expected overlay new node");
+
+    let bound_arguments = resolver
+        .signature_argument_bindings
+        .get(&overlay_new)
+        .expect("expected resolved overlay new arguments");
+
+    assert!(matches!(
+        bound_arguments.flags[0],
+        Some(BoundFlag::Switch { .. })
+    ));
+
+    let name = bound_arguments.positionals[0].expect("expected overlay name");
+    assert_eq!(compiler.get_span_contents(name), b"spam");
+}
+
+#[test]
+fn test_plugin_use_keyword_binds_value_taking_flag() {
+    let mut compiler = Compiler::new();
+    let contents = b"plugin use --plugin-config config spam\n";
+    compiler.add_file("test", contents);
+
+    let (tokens, err) = lex(contents, 0);
+    assert!(err.is_ok());
+
+    let parser = Parser::new(compiler, tokens);
+    compiler = parser.parse();
+    assert!(compiler.errors.is_empty());
+
+    let mut resolver = Resolver::new(&compiler);
+    resolver.resolve();
+    assert!(resolver.errors.is_empty());
+
+    let plugin_use = compiler
+        .ast_nodes
+        .iter()
+        .enumerate()
+        .find_map(|(idx, node)| {
+            matches!(node, AstNode::PluginUse { .. }).then_some(crate::parser::NodeId(idx))
+        })
+        .expect("expected plugin use node");
+
+    let bound_arguments = resolver
+        .signature_argument_bindings
+        .get(&plugin_use)
+        .expect("expected resolved plugin use arguments");
+
+    let Some(BoundFlag::Value { value, .. }) = bound_arguments.flags[0] else {
+        panic!("expected plugin-config flag value");
+    };
+    assert_eq!(compiler.get_span_contents(value), b"config");
+
+    let name = bound_arguments.positionals[0].expect("expected plugin use name");
+    assert_eq!(compiler.get_span_contents(name), b"spam");
+}
+
+#[test]
+fn test_plugin_use_keyword_binds_equals_flag_value() {
+    let mut compiler = Compiler::new();
+    let contents = b"plugin use --plugin-config=config spam\n";
+    compiler.add_file("test", contents);
+
+    let (tokens, err) = lex(contents, 0);
+    assert!(err.is_ok());
+
+    let parser = Parser::new(compiler, tokens);
+    compiler = parser.parse();
+    assert!(compiler.errors.is_empty());
+
+    let mut resolver = Resolver::new(&compiler);
+    resolver.resolve();
+    assert!(resolver.errors.is_empty());
+
+    let plugin_use = compiler
+        .ast_nodes
+        .iter()
+        .enumerate()
+        .find_map(|(idx, node)| {
+            matches!(node, AstNode::PluginUse { .. }).then_some(crate::parser::NodeId(idx))
+        })
+        .expect("expected plugin use node");
+
+    let bound_arguments = resolver
+        .signature_argument_bindings
+        .get(&plugin_use)
+        .expect("expected resolved plugin use arguments");
+
+    let Some(BoundFlag::Value { value, .. }) = bound_arguments.flags[0] else {
+        panic!("expected plugin-config flag value");
+    };
+    assert_eq!(compiler.get_span_contents(value), b"config");
+
+    let name = bound_arguments.positionals[0].expect("expected plugin use name");
+    assert_eq!(compiler.get_span_contents(name), b"spam");
 }

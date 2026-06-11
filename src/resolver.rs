@@ -1,3 +1,6 @@
+use crate::keyword_commands_prototype::{
+    BoundArguments, BoundFlag, CommandSignature, FlagArg, OverlayNew, PluginUse,
+};
 use crate::protocol::{Command, Declaration};
 use crate::{
     compiler::Compiler,
@@ -73,6 +76,7 @@ pub struct NameBindings {
     pub decls: Vec<Box<dyn Command>>,
     pub decl_nodes: Vec<NodeId>,
     pub decl_resolution: HashMap<NodeId, DeclId>,
+    pub signature_argument_bindings: HashMap<NodeId, BoundArguments>,
     pub errors: Vec<SourceError>,
 }
 
@@ -88,6 +92,7 @@ impl NameBindings {
             decls: vec![],
             decl_nodes: vec![],
             decl_resolution: HashMap::new(),
+            signature_argument_bindings: HashMap::new(),
             errors: vec![],
         }
     }
@@ -121,6 +126,8 @@ pub struct Resolver<'a> {
     pub decl_nodes: Vec<NodeId>,
     /// Mapping of decl's name node -> Command
     pub decl_resolution: HashMap<NodeId, DeclId>,
+    /// Nodes resolved through signature-based argument binding
+    pub signature_argument_bindings: HashMap<NodeId, BoundArguments>,
     /// Errors encountered during name binding
     pub errors: Vec<SourceError>,
 }
@@ -138,6 +145,7 @@ impl<'a> Resolver<'a> {
             decls: vec![],
             decl_nodes: vec![],
             decl_resolution: HashMap::new(),
+            signature_argument_bindings: HashMap::new(),
             errors: vec![],
         }
     }
@@ -153,6 +161,7 @@ impl<'a> Resolver<'a> {
             decls: self.decls,
             decl_nodes: self.decl_nodes,
             decl_resolution: self.decl_resolution,
+            signature_argument_bindings: self.signature_argument_bindings,
             errors: self.errors,
         }
     }
@@ -214,6 +223,19 @@ impl<'a> Resolver<'a> {
                 decls.sort();
                 let line_decl = format!("      decls: [ {0} ]\n", decls.join(", "));
                 result.push_str(&line_decl);
+            }
+        }
+
+        if !self.signature_argument_bindings.is_empty() {
+            result.push_str("==== SIGNATURE ARGUMENTS ====\n");
+            let mut signature_arguments = self
+                .signature_argument_bindings
+                .iter()
+                .map(|(node_id, arguments)| format!("{node_id:?}: {arguments:?}\n"))
+                .collect::<Vec<_>>();
+            signature_arguments.sort();
+            for line in signature_arguments {
+                result.push_str(&line);
             }
         }
 
@@ -292,6 +314,14 @@ impl<'a> Resolver<'a> {
                 old_name: _,
             } => {
                 self.define_decl(new_name, node_id);
+            }
+            AstNode::OverlayNew { arguments } => {
+                let arguments = self.compiler.get_arguments(arguments).nodes.clone();
+                self.resolve_signature_arguments(node_id, &arguments, OverlayNew::signature());
+            }
+            AstNode::PluginUse { arguments } => {
+                let arguments = self.compiler.get_arguments(arguments).nodes.clone();
+                self.resolve_signature_arguments(node_id, &arguments, PluginUse::signature());
             }
             AstNode::Params(_) => {
                 let params = self.compiler.get_params(node_id);
@@ -435,6 +465,18 @@ impl<'a> Resolver<'a> {
         }
     }
 
+    fn resolve_signature_arguments(
+        &mut self,
+        node_id: NodeId,
+        arguments: &[NodeId],
+        signature: &CommandSignature,
+    ) {
+        let bound_arguments = self.bind_arguments(node_id, arguments, signature);
+        self.resolve_bound_arguments(&bound_arguments);
+        self.signature_argument_bindings
+            .insert(node_id, bound_arguments);
+    }
+
     pub fn resolve_pipeline(&mut self, pipeline_id: PipelineId) {
         let pipeline = &self.compiler.pipelines[pipeline_id.0];
 
@@ -521,6 +563,259 @@ impl<'a> Resolver<'a> {
         for part in &parts[max_name_parts..] {
             self.resolve_node(*part);
         }
+    }
+
+    pub(crate) fn bind_arguments(
+        &mut self,
+        owner_node_id: NodeId,
+        parts: &[NodeId],
+        signature: &CommandSignature,
+    ) -> BoundArguments {
+        let mut bound_arguments = BoundArguments::new(signature);
+        let mut next_positional = 0;
+        let mut index = 0;
+
+        while index < parts.len() {
+            let part = parts[index];
+            match self.compiler.ast_nodes[part.0] {
+                AstNode::FlagLong { name: Some(name) } => {
+                    index += self.bind_long_flag(
+                        &mut bound_arguments,
+                        signature,
+                        part,
+                        name,
+                        parts.get(index + 1).copied(),
+                    );
+                }
+                AstNode::FlagLong { name: None } => {
+                    self.error("incomplete flag name", part);
+                    index += 1;
+                }
+                AstNode::FlagShort { name } => {
+                    index += self.bind_short_flags(
+                        &mut bound_arguments,
+                        signature,
+                        part,
+                        name,
+                        parts.get(index + 1).copied(),
+                    );
+                }
+                _ => {
+                    self.bind_positional(
+                        &mut bound_arguments,
+                        signature,
+                        part,
+                        &mut next_positional,
+                    );
+                    index += 1;
+                }
+            }
+        }
+
+        for (idx, positional) in signature.positionals.iter().enumerate() {
+            if !positional.optional && bound_arguments.positionals[idx].is_none() {
+                self.error(
+                    format!(
+                        "missing required positional: {}",
+                        String::from_utf8_lossy(positional.name)
+                    ),
+                    owner_node_id,
+                );
+            }
+        }
+
+        bound_arguments
+    }
+
+    fn bind_long_flag(
+        &mut self,
+        bound_arguments: &mut BoundArguments,
+        signature: &CommandSignature,
+        flag_node: NodeId,
+        flag_name: NodeId,
+        next_part: Option<NodeId>,
+    ) -> usize {
+        let flag_result = {
+            let flag_name = self.compiler.get_span_contents(flag_name);
+            signature
+                .find_long_flag(flag_name)
+                .map(|(idx, flag)| Ok((idx, *flag)))
+                .unwrap_or_else(|| {
+                    Err(format!(
+                        "unexpected long flag: --{}",
+                        String::from_utf8_lossy(flag_name)
+                    ))
+                })
+        };
+
+        let (flag_idx, flag) = match flag_result {
+            Ok(flag) => flag,
+            Err(message) => {
+                self.error(message, flag_node);
+                return 1;
+            }
+        };
+
+        match flag.arg {
+            FlagArg::Switch => {
+                self.set_bound_flag(
+                    bound_arguments,
+                    flag_idx,
+                    BoundFlag::Switch { flag: flag_node },
+                    flag_node,
+                    format!("--{}", String::from_utf8_lossy(flag.long)),
+                );
+                1
+            }
+            FlagArg::RequiredValue { .. } => {
+                let Some(value) = next_part.filter(|part| !self.is_flag_node(*part)) else {
+                    self.error(
+                        format!(
+                            "missing value for flag: --{}",
+                            String::from_utf8_lossy(flag.long)
+                        ),
+                        flag_node,
+                    );
+                    return 1;
+                };
+                self.set_bound_flag(
+                    bound_arguments,
+                    flag_idx,
+                    BoundFlag::Value {
+                        flag: flag_node,
+                        value,
+                    },
+                    flag_node,
+                    format!("--{}", String::from_utf8_lossy(flag.long)),
+                );
+                2
+            }
+        }
+    }
+
+    fn bind_short_flags(
+        &mut self,
+        bound_arguments: &mut BoundArguments,
+        signature: &CommandSignature,
+        flag_node: NodeId,
+        flag_name: NodeId,
+        next_part: Option<NodeId>,
+    ) -> usize {
+        let flag_len = self.compiler.get_span_contents(flag_name).len();
+        let mut consumed = 1;
+
+        for offset in 0..flag_len {
+            let short = self.compiler.get_span_contents(flag_name)[offset];
+            let Some((flag_idx, flag)) = signature.find_short_flag(short) else {
+                self.error(
+                    format!("unexpected short flag: -{}", short as char),
+                    flag_node,
+                );
+                continue;
+            };
+            let flag = *flag;
+
+            match flag.arg {
+                FlagArg::Switch => {
+                    self.set_bound_flag(
+                        bound_arguments,
+                        flag_idx,
+                        BoundFlag::Switch { flag: flag_node },
+                        flag_node,
+                        format!("-{}", short as char),
+                    );
+                }
+                FlagArg::RequiredValue { .. } => {
+                    if offset + 1 != flag_len {
+                        self.error(
+                            format!(
+                                "short flag requiring a value must be last in group: -{}",
+                                short as char
+                            ),
+                            flag_node,
+                        );
+                        continue;
+                    }
+
+                    let Some(value) = next_part.filter(|part| !self.is_flag_node(*part)) else {
+                        self.error(
+                            format!("missing value for flag: -{}", short as char),
+                            flag_node,
+                        );
+                        continue;
+                    };
+                    self.set_bound_flag(
+                        bound_arguments,
+                        flag_idx,
+                        BoundFlag::Value {
+                            flag: flag_node,
+                            value,
+                        },
+                        flag_node,
+                        format!("-{}", short as char),
+                    );
+                    consumed = 2;
+                }
+            }
+        }
+
+        consumed
+    }
+
+    fn bind_positional(
+        &mut self,
+        bound_arguments: &mut BoundArguments,
+        signature: &CommandSignature,
+        arg_node: NodeId,
+        next_positional: &mut usize,
+    ) {
+        while *next_positional < bound_arguments.positionals.len()
+            && bound_arguments.positionals[*next_positional].is_some()
+        {
+            *next_positional += 1;
+        }
+
+        if *next_positional >= signature.positionals.len() {
+            self.error("unexpected positional argument", arg_node);
+            return;
+        }
+
+        bound_arguments.positionals[*next_positional] = Some(arg_node);
+        *next_positional += 1;
+    }
+
+    fn set_bound_flag(
+        &mut self,
+        bound_arguments: &mut BoundArguments,
+        flag_idx: usize,
+        bound_flag: BoundFlag,
+        node_id: NodeId,
+        label: String,
+    ) {
+        if bound_arguments.flags[flag_idx].is_some() {
+            self.error(format!("duplicated flag: {}", label), node_id);
+        } else {
+            bound_arguments.flags[flag_idx] = Some(bound_flag);
+        }
+    }
+
+    fn resolve_bound_arguments(&mut self, bound_arguments: &BoundArguments) {
+        for flag in bound_arguments.flags.iter().flatten() {
+            if let BoundFlag::Value { value, .. } = flag {
+                self.resolve_node(*value);
+            }
+        }
+
+        for positional in bound_arguments.positionals.iter().flatten() {
+            self.resolve_node(*positional);
+        }
+    }
+
+    fn is_flag_node(&self, node_id: NodeId) -> bool {
+        matches!(
+            self.compiler.ast_nodes[node_id.0],
+            AstNode::FlagLong { .. } | AstNode::FlagShort { .. }
+        )
     }
 
     pub fn resolve_block(&mut self, node_id: NodeId, reused_scope: Option<ScopeId>) {
@@ -660,6 +955,14 @@ impl<'a> Resolver<'a> {
         }
 
         None
+    }
+
+    fn error(&mut self, message: impl Into<String>, node_id: NodeId) {
+        self.errors.push(SourceError {
+            message: message.into(),
+            node_id,
+            severity: Severity::Error,
+        });
     }
 }
 
