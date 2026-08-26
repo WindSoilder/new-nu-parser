@@ -5,13 +5,11 @@
 // instead of defining Pest's automatic WHITESPACE/COMMENT rules, because the
 // source grammar attaches trivia consumption to individual tokens.
 //
-// Note: raw_string is a mechanical translation of grammar.peg's RAW_STRING
-// rule. Like the source rule, it does not require the closing hash count to
-// equal the opening hash count. A production lexer should replace it with
-// delimiter-counting logic.
+// Improvement over grammar.peg: raw_string now uses Pest's parser stack
+// (PUSH/PEEK/POP) so the opening and closing `#` counts must match exactly,
+// which grammar.peg's independent `'#'+` approach cannot enforce.
 
-root = { shebang? ~ skip ~ block ~ eoi }
-eoi = { EOI }
+root = { SOI ~ shebang? ~ skip ~ block ~ EOI }
 
 // Top level
 block = { terminator* ~ (block_item ~ (terminator+ ~ block_item)*)? ~ terminator* }
@@ -278,9 +276,8 @@ string = { single_quoted_string | double_quoted_string | backtick_string }
 single_quoted_string = { "'" ~ (!("'") ~ ANY)* ~ "'" ~ skip }
 double_quoted_string = { "\"" ~ (escape | (!("\"" | "\\" | "\n" | "\r") ~ ANY))* ~ "\"" ~ skip }
 backtick_string = { "`" ~ (!"`" ~ ANY)* ~ "`" ~ skip }
-raw_string = { "r" ~ "#"+ ~ "'" ~ raw_string_char* ~ "'" ~ "#"+ ~ skip }
-raw_string_char = { !("'" ~ "#") ~ ANY }
-interpolated_string = { "\$\"" ~ interpolation_part* ~ "\"" ~ skip | "$'" ~ interpolation_part* ~ "'" ~ skip }
+raw_string = { "r" ~ PUSH("#"+) ~ "'" ~ (!("'" ~ PEEK) ~ ANY)* ~ "'" ~ POP ~ skip }
+interpolated_string = { "$\"" ~ interpolation_part* ~ "\"" ~ skip | "$'" ~ interpolation_part* ~ "'" ~ skip }
 interpolation_part = { lparen ~ block ~ rparen | interpolation_char+ }
 interpolation_char = { escape | (!("(" | ")" | "'" | "\"" | "\n" | "\r") ~ ANY) }
 escape = { "\\" ~ ("\\" | "\"" | "'" | "b" | "n" | "f" | "r" | "t" | "(" | ")") }
