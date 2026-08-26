@@ -1,0 +1,449 @@
+// Pest translation of grammar.peg.
+//
+// This mirrors the PEG structure and ordered-choice behavior of grammar.peg as
+// closely as Pest syntax permits. It deliberately keeps explicit `skip` rules
+// instead of defining Pest's automatic WHITESPACE/COMMENT rules, because the
+// source grammar attaches trivia consumption to individual tokens.
+//
+// Note: raw_string is a mechanical translation of grammar.peg's RAW_STRING
+// rule. Like the source rule, it does not require the closing hash count to
+// equal the opening hash count. A production lexer should replace it with
+// delimiter-counting logic.
+
+root = { shebang? ~ skip ~ block ~ eoi }
+eoi = { EOI }
+
+// Top level
+block = { terminator* ~ (block_item ~ (terminator+ ~ block_item)*)? ~ terminator* }
+block_item = { declaration | loop_statement | flow_statement | assignment | pipeline }
+terminator = { newline | semicolon }
+
+pipeline = { pipe_element ~ (pipe ~ pipe_element)* }
+pipe_element = { expression_command ~ redirection* }
+pipe = { outerr_pipe | err_pipe | pipe_token }
+redirection = { file_redirection ~ expression }
+file_redirection = {
+    outerr_append | outerr_write | err_append | err_write | out_append | out_write
+}
+
+// Declarations
+declaration = {
+    let_decl | mut_decl | const_decl | def_decl | extern_decl | alias_decl
+    | module_decl | use_decl | source_decl | export_decl | export_env_decl
+    | hide_decl | overlay_decl | plugin_use_decl
+}
+
+let_decl = { keyword_let ~ binding ~ equal ~ pipeline }
+mut_decl = { keyword_mut ~ binding ~ equal ~ pipeline }
+const_decl = { keyword_const ~ binding ~ equal ~ expression }
+binding = { variable_decl ~ type_annotation? }
+variable_decl = { dollar? ~ identifier }
+
+def_decl = { keyword_def ~ def_option* ~ command_name ~ type_params? ~ signature ~ io_signature? ~ block_literal }
+def_option = { flag_env | flag_wrapped }
+extern_decl = { keyword_extern ~ command_name ~ signature }
+alias_decl = { keyword_alias ~ command_name ~ equal ~ pipeline }
+
+module_decl = { keyword_module ~ module_name ~ block_literal | keyword_module ~ module_path }
+use_decl = { keyword_use ~ import_pattern }
+source_decl = { keyword_source_env ~ expression | keyword_source ~ expression }
+export_decl = { keyword_export ~ exportable_declaration }
+exportable_declaration = { def_decl | extern_decl | alias_decl | const_decl | module_decl | use_decl }
+export_env_decl = { keyword_export_env ~ block_literal }
+hide_decl = { keyword_hide ~ import_pattern }
+overlay_decl = { keyword_overlay ~ overlay_action }
+overlay_action = {
+    keyword_use ~ overlay_use_flag* ~ import_pattern ~ overlay_rename?
+    | keyword_hide ~ overlay_hide_flag* ~ command_name? ~ overlay_hide_flag*
+    | keyword_new ~ command_name
+    | keyword_list
+}
+overlay_use_flag = { flag_prefix }
+overlay_rename = { keyword_as ~ command_name }
+overlay_hide_flag = { flag_keep_custom | flag_keep_env ~ list }
+plugin_use_decl = { keyword_plugin ~ keyword_use ~ expression }
+
+// Block-level statements
+assignment = { cell_ref ~ assign_op ~ pipeline }
+assign_op = { plus2_equal | plus_equal | minus_equal | asterisk_equal | slash_equal | equal }
+
+loop_statement = { for_statement | while_statement | loop_forever }
+for_statement = { keyword_for ~ variable_decl ~ keyword_in ~ expression ~ block_literal }
+while_statement = { keyword_while ~ expression ~ block_literal }
+loop_forever = { keyword_loop ~ block_literal }
+
+flow_statement = { return_statement | break_statement | continue_statement }
+return_statement = { keyword_return ~ expression? }
+break_statement = { keyword_break }
+continue_statement = { keyword_continue }
+
+// Command level
+expression_command = { env_shorthand* ~ command }
+env_shorthand = { env_name ~ equal ~ (string | variable | bare_word) }
+command = { external_call | internal_call | expression }
+external_call = { caret ~ external_name ~ external_arg* }
+external_name = { command_name | variable | string }
+external_arg = { spread | expression | bare_word | string }
+internal_call = { command_name ~ argument* }
+command_name = { string | known_command_name | identifier }
+known_command_name = { identifier ~ identifier+ }
+argument = { flag | spread | expression | bare_word }
+flag = {
+    long_flag ~ ((equal ~ expression) | expression)?
+    | short_flag ~ ((equal ~ expression) | expression)?
+}
+long_flag = { dash2 ~ flag_name }
+short_flag = { dash ~ short_flags }
+spread = { dot3 ~ expression }
+
+// Expression level
+expression = { range_expr }
+range_expr = {
+    logical_or ~ (range_op ~ logical_or? ~ (range_op ~ logical_or?)?)?
+    | range_op ~ logical_or?
+}
+range_op = { dot2_less | dot2 }
+logical_or = { logical_xor ~ (keyword_or ~ logical_xor)* }
+logical_xor = { logical_and ~ (keyword_xor ~ logical_and)* }
+logical_and = { bit_or ~ (keyword_and ~ bit_or)* }
+bit_or = { bit_xor ~ (keyword_bit_or ~ bit_xor)* }
+bit_xor = { bit_and ~ (keyword_bit_xor ~ bit_and)* }
+bit_and = { comparison ~ (keyword_bit_and ~ comparison)* }
+comparison = { shift ~ (compare_op ~ shift)* }
+compare_op = {
+    equal_equal | exclamation_equal | larrow_equal | rarrow_equal | larrow | rarrow
+    | equal_tilde | exclamation_tilde | keyword_not_like | keyword_like
+    | keyword_not_in | keyword_in | keyword_not_has | keyword_has
+    | keyword_not_starts_with | keyword_starts_with
+    | keyword_not_ends_with | keyword_ends_with | plus2
+}
+shift = { addition ~ ((keyword_bit_shl | keyword_bit_shr) ~ addition)* }
+addition = { multiply ~ ((plus | minus) ~ multiply)* }
+multiply = { power ~ ((asterisk | slash2 | slash | keyword_mod) ~ power)* }
+power = { unary ~ (asterisk2 ~ power)? }
+unary = { (keyword_not | plus | minus) ~ unary | postfix }
+postfix = { primary ~ cell_path? }
+primary = {
+    if_expr | try_expr | match_expr | literal | variable | cell_path_literal
+    | table | list | closure | record | block_literal | subexpression
+}
+
+literal = {
+    filesize | duration | date | binary | interpolated_string | raw_string | string
+    | float | int | bool | keyword_null
+}
+variable = { special_variable | dollar ~ identifier }
+special_variable = {
+    "$NU_PLUGIN_DIRS" ~ end_of_word ~ skip
+    | "$NU_LIB_DIRS" ~ end_of_word ~ skip
+    | "$env" ~ end_of_word ~ skip
+    | "$in" ~ end_of_word ~ skip
+    | "$it" ~ end_of_word ~ skip
+    | "$nu" ~ end_of_word ~ skip
+}
+cell_ref = { variable ~ cell_path? | cell_path_literal }
+cell_path_literal = { dollar ~ cell_path }
+cell_path = { cell_member+ }
+cell_member = { cell_dot ~ path_member ~ cell_question? }
+path_member = { string | int | identifier }
+subexpression = { lparen ~ block ~ rparen }
+block_literal = { lbrace ~ block ~ rbrace }
+
+// Collection literals
+list = { lbracket ~ list_items? ~ rbracket }
+list_items = { list_item ~ (separator? ~ list_item)* ~ separator? }
+list_item = { spread | expression | bare_word }
+
+table = { lbracket ~ table_header ~ semicolon ~ table_row* ~ rbracket }
+table_header = { lbracket ~ table_header_names? ~ rbracket }
+table_header_names = { table_header_name ~ (separator? ~ table_header_name)* ~ separator? }
+table_header_name = { string | identifier }
+table_row = { lbracket ~ table_row_values? ~ rbracket ~ separator? }
+table_row_values = { table_row_value ~ (separator? ~ table_row_value)* ~ separator? }
+table_row_value = { expression | bare_word }
+
+record = { lbrace ~ record_items? ~ rbrace }
+record_items = { record_item ~ (separator? ~ record_item)* ~ separator? }
+record_item = { record_key ~ colon ~ expression }
+record_key = { string | identifier }
+
+closure = {
+    lbrace ~ pipe_token ~ pipe_token ~ block ~ rbrace
+    | lbrace ~ pipe_token ~ closure_param_list? ~ pipe_token ~ block ~ rbrace
+    | lbrace ~ block ~ rbrace
+}
+closure_param_list = { closure_param ~ (comma ~ closure_param)* ~ comma? }
+closure_param = { identifier ~ type_annotation? }
+separator = { comma | newline | semicolon }
+
+// Control expressions
+if_expr = { keyword_if ~ expression ~ block_literal ~ else_clause? }
+else_clause = { keyword_else ~ if_expr | keyword_else ~ match_expr | keyword_else ~ block_literal }
+try_expr = { keyword_try ~ block_literal ~ catch_clause? ~ finally_clause? }
+catch_clause = { keyword_catch ~ (closure | block_literal) }
+finally_clause = { keyword_finally ~ block_literal }
+match_expr = { keyword_match ~ expression ~ match_block }
+match_block = { lbrace ~ match_arm ~ (separator ~ match_arm)* ~ separator? ~ rbrace }
+match_arm = { pattern ~ guard? ~ fat_arrow ~ (expression | block_literal) }
+guard = { keyword_if ~ expression }
+pattern = { or_pattern }
+or_pattern = { single_pattern ~ (pipe_token ~ single_pattern)* }
+single_pattern = { underscore | literal | variable | list_pattern | record_pattern }
+list_pattern = { lbracket ~ pattern ~ (comma ~ pattern)* ~ comma? ~ rbracket }
+record_pattern = { lbrace ~ record_pattern_item ~ (comma ~ record_pattern_item)* ~ comma? ~ rbrace }
+record_pattern_item = { record_key ~ colon ~ pattern }
+
+// Signatures and types
+signature = { lbracket ~ signature_param ~ (separator? ~ signature_param)* ~ separator? ~ rbracket }
+signature_param = { rest_param | flag_param | short_only_flag | positional_param }
+positional_param = { identifier ~ questionmark? ~ type_annotation? ~ default_value? }
+rest_param = { dot3 ~ identifier ~ type_annotation? }
+flag_param = { long_flag ~ short_flag_alias? ~ type_annotation? ~ default_value? }
+short_only_flag = { short_flag ~ type_annotation? ~ default_value? }
+short_flag_alias = { lparen ~ short_flag ~ rparen }
+default_value = { equal ~ expression }
+io_signature = {
+    colon ~ lbracket ~ in_out_type ~ (separator? ~ in_out_type)* ~ separator? ~ rbracket
+    | colon ~ in_out_type
+}
+in_out_type = { type_expr ~ thin_arrow ~ type_expr }
+type_annotation = { colon ~ type_expr ~ completer? }
+completer = { at ~ command_name }
+type_params = { larrow ~ identifier ~ (comma ~ identifier)* ~ comma? ~ rarrow }
+type_expr = {
+    keyword_record ~ larrow ~ record_type_fields? ~ rarrow ~ questionmark?
+    | identifier ~ type_args? ~ questionmark?
+}
+type_args = { larrow ~ type_expr ~ (comma ~ type_expr)* ~ comma? ~ rarrow }
+record_type_fields = { record_type_field ~ (comma ~ record_type_field)* ~ comma? }
+record_type_field = { record_key ~ type_annotation? }
+
+// Imports and modules
+import_pattern = { module_ref ~ import_members? }
+module_ref = { module_path | module_name }
+import_members = { asterisk | command_name | lbracket ~ import_member_list? ~ rbracket }
+import_member_list = { import_member ~ (separator? ~ import_member)* ~ separator? }
+import_member = { asterisk | string | command_name }
+module_name = { string | command_name }
+module_path = { path | string }
+
+// Lexical helpers
+skip = _{ (" " | "\t" | line_comment)* }
+line_comment = { "#" ~ (!("\n" | "\r") ~ ANY)* }
+shebang = { "#!" ~ (!("\n" | "\r") ~ ANY)* ~ newline }
+newline = { ("\r\n" | "\n" | "\u{000C}") ~ skip }
+
+hex = { ASCII_HEX_DIGIT }
+oct = { '0'..'7' }
+bin = { '0'..'1' }
+dec = { ASCII_DIGIT }
+sign = { "+" | "-" }
+dec_int = { dec ~ ("_"? ~ dec)* }
+hex_int = { hex ~ ("_"? ~ hex)* }
+oct_int = { oct ~ ("_"? ~ oct)* }
+bin_int = { bin ~ ("_"? ~ bin)* }
+number = {
+    sign? ~ dec_int? ~ "." ~ dec_int ~ (("e" | "E") ~ sign? ~ dec_int)?
+    | sign? ~ dec_int ~ "." ~ dec_int? ~ (("e" | "E") ~ sign? ~ dec_int)?
+    | sign? ~ dec_int
+}
+
+int = {
+    sign? ~ "0x" ~ hex_int ~ skip
+    | sign? ~ "0o" ~ oct_int ~ skip
+    | sign? ~ "0b" ~ bin_int ~ skip
+    | sign? ~ dec_int ~ skip
+}
+float = {
+    sign? ~ dec_int? ~ "." ~ dec_int ~ (("e" | "E") ~ sign? ~ dec_int)? ~ skip
+    | sign? ~ dec_int ~ "." ~ dec_int? ~ (("e" | "E") ~ sign? ~ dec_int)? ~ skip
+    | "Infinity" ~ skip
+    | "-Infinity" ~ skip
+    | "NaN" ~ skip
+}
+filesize = { number ~ file_size_unit ~ skip }
+file_size_unit = { "B" | "KB" | "KiB" | "MB" | "MiB" | "GB" | "GiB" | "TB" | "TiB" | "PB" | "PiB" }
+duration = { number ~ duration_unit ~ skip }
+duration_unit = { "ns" | "us" | "ms" | "sec" | "min" | "hr" | "day" | "wk" }
+date = { dec ~ dec ~ dec ~ dec ~ "-" ~ dec ~ dec ~ "-" ~ dec ~ dec ~ date_time_tail? ~ skip }
+date_time_tail = { "T" ~ dec ~ dec ~ ":" ~ dec ~ dec ~ ":" ~ dec ~ dec ~ ("." ~ dec+)? ~ time_zone? }
+time_zone = { "Z" | sign ~ dec ~ dec ~ ":" ~ dec ~ dec }
+binary = {
+    "0x[" ~ (hex ~ hex? ~ skip)* ~ "]" ~ skip
+    | "0o[" ~ (oct ~ skip)* ~ "]" ~ skip
+    | "0b[" ~ (bin ~ skip)* ~ "]" ~ skip
+}
+bool = { keyword_true | keyword_false }
+string = { single_quoted_string | double_quoted_string | backtick_string }
+single_quoted_string = { "'" ~ (!("'") ~ ANY)* ~ "'" ~ skip }
+double_quoted_string = { "\"" ~ (escape | (!("\"" | "\\" | "\n" | "\r") ~ ANY))* ~ "\"" ~ skip }
+backtick_string = { "`" ~ (!"`" ~ ANY)* ~ "`" ~ skip }
+raw_string = { "r" ~ "#"+ ~ "'" ~ raw_string_char* ~ "'" ~ "#"+ ~ skip }
+raw_string_char = { !("'" ~ "#") ~ ANY }
+interpolated_string = { "\$\"" ~ interpolation_part* ~ "\"" ~ skip | "$'" ~ interpolation_part* ~ "'" ~ skip }
+interpolation_part = { lparen ~ block ~ rparen | interpolation_char+ }
+interpolation_char = { escape | (!("(" | ")" | "'" | "\"" | "\n" | "\r") ~ ANY) }
+escape = { "\\" ~ ("\\" | "\"" | "'" | "b" | "n" | "f" | "r" | "t" | "(" | ")") }
+path = { path_char+ ~ skip }
+path_char = { !(" " | "\t" | "\r" | "\n" | "," | ";" | "(" | ")" | "[" | "]" | "{" | "}" | "|" | "'" | "\"" | "`") ~ ANY }
+bare_word = { bare }
+bare = { !keyword ~ bare_char+ ~ skip }
+bare_char = { !(" " | "\t" | "\r" | "\n" | "," | ";" | "(" | ")" | "[" | "]" | "{" | "}" | "|" | "$" | "'" | "\"" | "`") ~ ANY }
+identifier = { !keyword ~ identifier_char+ ~ skip }
+identifier_char = { !(" " | "\t" | "\r" | "\n" | "." | "[" | "]" | "(" | "{" | "+" | "-" | "*" | "^" | "/" | "=" | "!" | "<" | ">" | "&" | "|" | "," | ";" | ":" | "'" | "\"" | "`") ~ ANY }
+env_name = { identifier_char+ ~ skip }
+flag_name = { identifier_char+ ~ ("-" ~ identifier_char+)* ~ skip }
+short_flags = { ('A'..'Z' | 'a'..'z')+ ~ skip }
+
+// Tokens
+semicolon = { ";" ~ skip }
+comma = { "," ~ skip }
+colon = { ":" ~ skip }
+thin_arrow = { "->" ~ skip }
+fat_arrow = { "=>" ~ skip }
+lparen = { "(" ~ skip }
+rparen = { ")" ~ skip }
+lbracket = { "[" ~ skip }
+rbracket = { "]" ~ skip }
+lbrace = { "{" ~ skip }
+rbrace = { "}" ~ skip }
+at = { "@" ~ skip }
+caret = { "^" ~ skip }
+dollar = { "$" }
+underscore = { "_" ~ skip }
+questionmark = { "?" ~ skip }
+cell_dot = { "." }
+cell_question = { "?" }
+
+outerr_pipe = { ("out+err>|" | "err+out>|" | "o+e>|" | "e+o>|") ~ skip }
+err_pipe = { ("err>|" | "e>|") ~ skip }
+pipe_token = { "|" ~ skip }
+outerr_append = { ("out+err>>" | "err+out>>" | "o+e>>" | "e+o>>") ~ skip }
+outerr_write = { ("out+err>" | "err+out>" | "o+e>" | "e+o>") ~ skip }
+err_append = { ("err>>" | "e>>") ~ skip }
+err_write = { ("err>" | "e>") ~ skip }
+out_append = { ("out>>" | "o>>") ~ skip }
+out_write = { ("out>" | "o>") ~ skip }
+
+dot3 = { "..." ~ skip }
+dot2_less = { "..<" ~ skip }
+dot2 = { ".." ~ skip }
+dot = { "." ~ skip }
+plus2_equal = { "++=" ~ skip }
+plus2 = { "++" ~ skip }
+plus_equal = { "+=" ~ skip }
+plus = { "+" ~ skip }
+minus_equal = { "-=" ~ skip }
+minus = { "-" ~ skip }
+asterisk2 = { "**" ~ skip }
+asterisk_equal = { "*=" ~ skip }
+asterisk = { "*" ~ skip }
+slash2 = { "//" ~ skip }
+slash_equal = { "/=" ~ skip }
+slash = { "/" ~ skip }
+equal_equal = { "==" ~ skip }
+equal_tilde = { "=~" ~ skip }
+equal = { "=" ~ skip }
+exclamation_equal = { "!=" ~ skip }
+exclamation_tilde = { "!~" ~ skip }
+larrow_equal = { "<=" ~ skip }
+larrow = { "<" ~ skip }
+rarrow_equal = { ">=" ~ skip }
+rarrow = { ">" ~ skip }
+dash2 = { "--" }
+dash = { "-" }
+
+flag_env = { "--env" ~ skip }
+flag_wrapped = { "--wrapped" ~ skip }
+flag_prefix = { "--prefix" ~ skip }
+flag_keep_custom = { "--keep-custom" ~ skip }
+flag_keep_env = { "--keep-env" ~ skip }
+
+end_of_word = { !(ASCII_ALPHANUMERIC | "_" | "-") }
+
+keyword_alias = { "alias" ~ end_of_word ~ skip }
+keyword_and = { "and" ~ end_of_word ~ skip }
+keyword_as = { "as" ~ end_of_word ~ skip }
+keyword_bit_and = { "bit-and" ~ end_of_word ~ skip }
+keyword_bit_or = { "bit-or" ~ end_of_word ~ skip }
+keyword_bit_shl = { "bit-shl" ~ end_of_word ~ skip }
+keyword_bit_shr = { "bit-shr" ~ end_of_word ~ skip }
+keyword_bit_xor = { "bit-xor" ~ end_of_word ~ skip }
+keyword_break = { "break" ~ end_of_word ~ skip }
+keyword_catch = { "catch" ~ end_of_word ~ skip }
+keyword_const = { "const" ~ end_of_word ~ skip }
+keyword_continue = { "continue" ~ end_of_word ~ skip }
+keyword_def = { "def" ~ end_of_word ~ skip }
+keyword_else = { "else" ~ end_of_word ~ skip }
+keyword_ends_with = { "ends-with" ~ end_of_word ~ skip }
+keyword_export_env = { "export-env" ~ end_of_word ~ skip }
+keyword_export = { "export" ~ end_of_word ~ skip }
+keyword_extern = { "extern" ~ end_of_word ~ skip }
+keyword_false = { "false" ~ end_of_word ~ skip }
+keyword_finally = { "finally" ~ end_of_word ~ skip }
+keyword_for = { "for" ~ end_of_word ~ skip }
+keyword_has = { "has" ~ end_of_word ~ skip }
+keyword_hide = { "hide" ~ end_of_word ~ skip }
+keyword_if = { "if" ~ end_of_word ~ skip }
+keyword_in = { "in" ~ end_of_word ~ skip }
+keyword_let = { "let" ~ end_of_word ~ skip }
+keyword_like = { "like" ~ end_of_word ~ skip }
+keyword_list = { "list" ~ end_of_word ~ skip }
+keyword_loop = { "loop" ~ end_of_word ~ skip }
+keyword_match = { "match" ~ end_of_word ~ skip }
+keyword_mod = { "mod" ~ end_of_word ~ skip }
+keyword_module = { "module" ~ end_of_word ~ skip }
+keyword_mut = { "mut" ~ end_of_word ~ skip }
+keyword_new = { "new" ~ end_of_word ~ skip }
+keyword_not = { "not" ~ end_of_word ~ skip }
+keyword_not_ends_with = { "not-ends-with" ~ end_of_word ~ skip }
+keyword_not_has = { "not-has" ~ end_of_word ~ skip }
+keyword_not_in = { "not-in" ~ end_of_word ~ skip }
+keyword_not_like = { "not-like" ~ end_of_word ~ skip }
+keyword_not_starts_with = { "not-starts-with" ~ end_of_word ~ skip }
+keyword_null = { "null" ~ end_of_word ~ skip }
+keyword_or = { "or" ~ end_of_word ~ skip }
+keyword_overlay = { "overlay" ~ end_of_word ~ skip }
+keyword_plugin = { "plugin" ~ end_of_word ~ skip }
+keyword_record = { "record" ~ end_of_word ~ skip }
+keyword_return = { "return" ~ end_of_word ~ skip }
+keyword_source_env = { "source-env" ~ end_of_word ~ skip }
+keyword_source = { "source" ~ end_of_word ~ skip }
+keyword_starts_with = { "starts-with" ~ end_of_word ~ skip }
+keyword_true = { "true" ~ end_of_word ~ skip }
+keyword_try = { "try" ~ end_of_word ~ skip }
+keyword_use = { "use" ~ end_of_word ~ skip }
+keyword_while = { "while" ~ end_of_word ~ skip }
+keyword_xor = { "xor" ~ end_of_word ~ skip }
+
+keyword = {
+    keyword_alias | keyword_and | keyword_as | keyword_bit_and | keyword_bit_or
+    | keyword_bit_shl | keyword_bit_shr | keyword_bit_xor | keyword_break
+    | keyword_catch | keyword_const | keyword_continue | keyword_def | keyword_else
+    | keyword_ends_with | keyword_export_env | keyword_export | keyword_extern
+    | keyword_false | keyword_finally | keyword_for | keyword_has | keyword_hide
+    | keyword_if | keyword_in | keyword_let | keyword_like | keyword_list
+    | keyword_loop | keyword_match | keyword_mod | keyword_module | keyword_mut
+    | keyword_new | keyword_not_ends_with | keyword_not_has | keyword_not_in
+    | keyword_not_like | keyword_not_starts_with | keyword_not | keyword_null
+    | keyword_or | keyword_overlay | keyword_plugin | keyword_record | keyword_return
+    | keyword_source_env | keyword_source | keyword_starts_with | keyword_true
+    | keyword_try | keyword_use | keyword_while | keyword_xor
+}
+
+// Current repository checkpoint, translated from grammar.peg for reference.
+implemented_block_item = {
+    def_decl | extern_decl | let_decl | mut_decl | alias_decl | for_statement
+    | while_statement | loop_forever | return_statement | break_statement
+    | continue_statement | assignment | pipeline
+}
+implemented_primary = {
+    int | float | string | bool | keyword_null | variable | list | table | record
+    | closure | subexpression | if_expr | try_expr | match_expr
+}
+implemented_operator = {
+    asterisk2 | asterisk | slash2 | slash | keyword_mod | plus2 | plus | minus
+    | equal_equal | exclamation_equal | larrow_equal | rarrow_equal | larrow
+    | rarrow | equal_tilde | exclamation_tilde | keyword_in | keyword_and
+    | keyword_xor | keyword_or | assign_op
+}
