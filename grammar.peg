@@ -1,410 +1,774 @@
-# Expected Nushell Grammar
+# Nushell grammar in PEG-style format.
+#
+# Format intentionally follows Zig's grammar/grammar.peg style:
+#   Rule <- Expression
+#   A / B is ordered choice
+#   * + ? are repetition operators
+#   ! is negative lookahead
+#
+# This is a target grammar for Nushell syntax.  The last section records the
+# smaller subset currently covered by this repository's parser and tests.
 
-It is a target grammar for a Nushell parser, based on the official Nushell book and the
-syntax already represented in this repository's parser and tests.
+Root <- Shebang? skip Block eof
 
-Notation: terminals are quoted, token names are uppercase, `?` means optional,
-`*` means zero or more, and `+` means one or more.
+# *** Top level ***
 
-## Program, Blocks, and Pipelines
+Block <- Terminator* (BlockItem (Terminator+ BlockItem)*)? Terminator*
 
-program        → shebang? block EOF ;
-shebang        → "#!" any_until_newline NEWLINE ;
+BlockItem
+    <- Declaration
+     / LoopStatement
+     / FlowStatement
+     / Assignment
+     / Pipeline
 
-block          → block_item ( terminator+ block_item )* terminator* ;
-block_item     → declaration
-               | loop_statement
-               | flow_statement
-               | assignment
-               | pipeline ;
-terminator     → NEWLINE | ";" ;
+Terminator <- NEWLINE / SEMICOLON
 
-pipeline       → pipe_element ( pipe pipe_element )* ;
-pipe_element   → expression_command redirection* ;
-pipe           → "|"
-               | "err>|" | "e>|"
-               | "out+err>|" | "err+out>|" | "o+e>|" | "e+o>|" ;
+Pipeline <- PipeElement (Pipe PipeElement)*
+PipeElement <- ExpressionCommand Redirection*
 
-redirection    → file_redirection expression ;
-file_redirection
-               → "out>" | "o>" | "out>>" | "o>>"
-               | "err>" | "e>" | "err>>" | "e>>"
-               | "out+err>" | "err+out>" | "o+e>" | "e+o>"
-               | "out+err>>" | "err+out>>" | "o+e>>" | "e+o>>" ;
+Pipe
+    <- OUTERR_PIPE
+     / ERR_PIPE
+     / PIPE
 
-## Declarations and Statements
+Redirection <- FileRedirection Expression
 
-declaration    → let_decl
-               | mut_decl
-               | const_decl
-               | def_decl
-               | extern_decl
-               | alias_decl
-               | module_decl
-               | use_decl
-               | source_decl
-               | export_decl
-               | export_env_decl
-               | hide_decl
-               | overlay_decl
-               | plugin_use_decl ;
+FileRedirection
+    <- OUTERR_APPEND
+     / OUTERR_WRITE
+     / ERR_APPEND
+     / ERR_WRITE
+     / OUT_APPEND
+     / OUT_WRITE
 
-let_decl       → "let" binding "=" pipeline ;
-mut_decl       → "mut" binding "=" pipeline ;
-const_decl     → "const" binding "=" expression ;
-binding        → variable_decl type_annotation? ;
-variable_decl  → IDENTIFIER
-               | "$" IDENTIFIER ;
+# *** Declarations ***
 
-def_decl       → "def" def_option* command_name type_params? signature io_signature? block_literal ;
-def_option     → "--env" | "--wrapped" ;
+Declaration
+    <- LetDecl
+     / MutDecl
+     / ConstDecl
+     / DefDecl
+     / ExternDecl
+     / AliasDecl
+     / ModuleDecl
+     / UseDecl
+     / SourceDecl
+     / ExportDecl
+     / ExportEnvDecl
+     / HideDecl
+     / OverlayDecl
+     / PluginUseDecl
 
-extern_decl    → "extern" command_name signature ;
-alias_decl     → "alias" command_name "=" pipeline ;
+LetDecl <- KEYWORD_let Binding EQUAL Pipeline
+MutDecl <- KEYWORD_mut Binding EQUAL Pipeline
+ConstDecl <- KEYWORD_const Binding EQUAL Expression
 
-module_decl    → "module" module_name block_literal
-               | "module" module_path ;
-use_decl       → "use" import_pattern ;
-source_decl    → "source" expression
-               | "source-env" expression ;
+Binding <- VariableDecl TypeAnnotation?
+VariableDecl <- DOLLAR? IDENTIFIER
 
-export_decl    → "export" exportable_declaration ;
-exportable_declaration
-               → def_decl
-               | extern_decl
-               | alias_decl
-               | const_decl
-               | module_decl
-               | use_decl ;
-export_env_decl
-               → "export-env" block_literal ;
+DefDecl <- KEYWORD_def DefOption* CommandName TypeParams? Signature IoSignature? BlockLiteral
+DefOption <- FLAG_env / FLAG_wrapped
 
-hide_decl      → "hide" import_pattern ;
-overlay_decl   → "overlay" overlay_action ;
-overlay_action → "use" overlay_use_flag* import_pattern overlay_rename?
-               | "hide" overlay_hide_flag* command_name? overlay_hide_flag*
-               | "new" command_name
-               | "list" ;
-overlay_use_flag
-               → "--prefix" ;
-overlay_rename → "as" command_name ;
-overlay_hide_flag
-               → "--keep-custom"
-               | "--keep-env" list ;
-plugin_use_decl
-               → "plugin" "use" expression ;
+ExternDecl <- KEYWORD_extern CommandName Signature
+AliasDecl <- KEYWORD_alias CommandName EQUAL Pipeline
 
-assignment     → cell_ref assign_op pipeline ;
-assign_op      → "=" | "+=" | "-=" | "*=" | "/=" | "++=" ;
+ModuleDecl
+    <- KEYWORD_module ModuleName BlockLiteral
+     / KEYWORD_module ModulePath
 
-loop_statement → for_statement
-               | while_statement
-               | loop_forever ;
-for_statement  → "for" variable_decl "in" expression block_literal ;
-while_statement
-               → "while" expression block_literal ;
-loop_forever   → "loop" block_literal ;
+UseDecl <- KEYWORD_use ImportPattern
 
-flow_statement → return_statement
-               | break_statement
-               | continue_statement ;
-return_statement
-               → "return" expression? ;
-break_statement
-               → "break" ;
-continue_statement
-               → "continue" ;
+SourceDecl
+    <- KEYWORD_source_env Expression
+     / KEYWORD_source Expression
 
-## Commands and Arguments
+ExportDecl <- KEYWORD_export ExportableDeclaration
 
-expression_command
-               → env_shorthand* command ;
-env_shorthand  → ENV_NAME "=" ( STRING | variable | bare_word ) ;
+ExportableDeclaration
+    <- DefDecl
+     / ExternDecl
+     / AliasDecl
+     / ConstDecl
+     / ModuleDecl
+     / UseDecl
 
-command        → external_call
-               | internal_call
-               | expression ;
-external_call  → "^" external_name external_arg* ;
-external_name  → command_name
-               | variable
-               | STRING ;
-external_arg   → spread
-               | expression
-               | bare_word
-               | STRING ;
+ExportEnvDecl <- KEYWORD_export_env BlockLiteral
 
-internal_call  → command_name argument* ;
-command_name   → command_part+
-               | STRING ;
-command_part   → IDENTIFIER ;
-argument       → flag
-               | spread
-               | expression
-               | bare_word ;
-flag           → "--" FLAG_NAME ( "=" expression | expression )?
-               | "-" SHORT_FLAGS ( "=" expression | expression )? ;
-spread         → "..." expression ;
+HideDecl <- KEYWORD_hide ImportPattern
 
-## Expressions
+OverlayDecl <- KEYWORD_overlay OverlayAction
 
-expression     → logical_or ;
+OverlayAction
+    <- KEYWORD_use OverlayUseFlag* ImportPattern OverlayRename?
+     / KEYWORD_hide OverlayHideFlag* CommandName? OverlayHideFlag*
+     / KEYWORD_new CommandName
+     / KEYWORD_list
 
-logical_or     → logical_xor ( "or" logical_xor )* ;
-logical_xor    → logical_and ( "xor" logical_and )* ;
-logical_and    → bit_or ( "and" bit_or )* ;
-bit_or         → bit_xor ( "bit-or" bit_xor )* ;
-bit_xor        → bit_and ( "bit-xor" bit_and )* ;
-bit_and        → comparison ( "bit-and" comparison )* ;
-comparison     → shift ( comparison_op shift )* ;
-comparison_op  → "==" | "!=" | "<" | "<=" | ">" | ">="
-               | "=~" | "!~" | "like" | "not-like"
-               | "in" | "not-in"
-               | "has" | "not-has"
-               | "starts-with" | "not-starts-with"
-               | "ends-with" | "not-ends-with"
-               | "++" ;
-shift          → term ( ( "bit-shl" | "bit-shr" ) term )* ;
-term           → factor ( ( "+" | "-" ) factor )* ;
-factor         → power ( ( "*" | "/" | "//" | "mod" ) power )* ;
-power          → unary ( "**" power )? ;
-unary          → ( "not" | "+" | "-" ) unary
-               | postfix ;
-postfix        → primary cell_path? ;
+OverlayUseFlag <- FLAG_prefix
+OverlayRename <- KEYWORD_as CommandName
+OverlayHideFlag <- FLAG_keep_custom / FLAG_keep_env List
 
-primary        → literal
-               | variable
-               | cell_path_literal
-               | list
-               | table
-               | record
-               | closure
-               | block_literal
-               | subexpression
-               | range
-               | if_expr
-               | try_expr
-               | match_expr ;
+PluginUseDecl <- KEYWORD_plugin KEYWORD_use Expression
 
-literal        → INT | FLOAT | FILESIZE | DURATION | DATE
-               | STRING | RAW_STRING | INTERPOLATED_STRING | BACKTICK_STRING
-               | BINARY | BOOL | "null" ;
+# *** Block level statements ***
 
-variable       → "$" IDENTIFIER
-               | "$in" | "$it" | "$env" | "$nu"
-               | "$NU_LIB_DIRS" | "$NU_PLUGIN_DIRS" ;
+Assignment <- CellRef AssignOp Pipeline
 
-cell_ref       → variable cell_path?
-               | cell_path_literal ;
-cell_path_literal
-               → "$" cell_path ;
-cell_path      → cell_member+ ;
-cell_member    → "." path_member "?"? ;
-path_member    → IDENTIFIER
-               | INT
-               | STRING ;
+AssignOp
+    <- PLUS2EQUAL
+     / PLUSEQUAL
+     / MINUSEQUAL
+     / ASTERISKEQUAL
+     / SLASHEQUAL
+     / EQUAL
 
-subexpression  → "(" block ")" ;
-block_literal  → "{" block "}" ;
+LoopStatement
+    <- ForStatement
+     / WhileStatement
+     / LoopForever
 
-range          → range_bound? range_op range_bound?
-               | range_bound ".." range_bound range_op range_bound ;
-range_op       → ".." | "..<" ;
-range_bound    → postfix ;
+ForStatement <- KEYWORD_for VariableDecl KEYWORD_in Expression BlockLiteral
+WhileStatement <- KEYWORD_while Expression BlockLiteral
+LoopForever <- KEYWORD_loop BlockLiteral
 
-## Collection Literals
+FlowStatement
+    <- ReturnStatement
+     / BreakStatement
+     / ContinueStatement
 
-list           → "[" list_items? "]" ;
-list_items     → list_item ( separator? list_item )* separator? ;
-list_item      → spread
-               | expression
-               | bare_word ;
+ReturnStatement <- KEYWORD_return Expression?
+BreakStatement <- KEYWORD_break
+ContinueStatement <- KEYWORD_continue
 
-table          → "[" table_header ";" table_row* "]" ;
-table_header   → "[" table_header_names? "]" ;
-table_header_names
-               → table_header_name ( separator? table_header_name )* separator? ;
-table_header_name
-               → IDENTIFIER | STRING ;
-table_row      → "[" table_row_values? "]" separator? ;
-table_row_values
-               → table_row_value ( separator? table_row_value )* separator? ;
-table_row_value
-               → expression | bare_word ;
+# *** Command level ***
 
-record         → "{" record_items? "}" ;
-record_items   → record_item ( separator? record_item )* separator? ;
-record_item    → record_key ":" expression ;
-record_key     → IDENTIFIER
-               | STRING ;
+ExpressionCommand <- EnvShorthand* Command
 
-closure        → "{||" block "}"
-               | "{|" closure_param_list? "|" block "}"
-               | "{" block "}" ;
-closure_param_list
-               → closure_param ( "," closure_param )* ","? ;
-closure_param  → IDENTIFIER type_annotation? ;
+EnvShorthand <- ENV_NAME EQUAL (STRING / Variable / BareWord)
 
-separator      → "," | NEWLINE | ";" ;
+Command
+    <- ExternalCall
+     / InternalCall
+     / Expression
 
-## Control Expressions
+ExternalCall <- CARET ExternalName ExternalArg*
 
-if_expr        → "if" expression block_literal else_clause? ;
-else_clause    → "else" ( if_expr | match_expr | block_literal ) ;
+ExternalName
+    <- CommandName
+     / Variable
+     / STRING
 
-try_expr       → "try" block_literal catch_clause? finally_clause? ;
-catch_clause   → "catch" ( closure | block_literal ) ;
-finally_clause → "finally" block_literal ;
+ExternalArg
+    <- Spread
+     / Expression
+     / BareWord
+     / STRING
 
-match_expr     → "match" expression match_block ;
-match_block    → "{" match_arm ( separator match_arm )* separator? "}" ;
-match_arm      → pattern guard? "=>" ( expression | block_literal ) ;
-guard          → "if" expression ;
+InternalCall <- CommandName Argument*
 
-pattern        → or_pattern ;
-or_pattern     → single_pattern ( "|" single_pattern )* ;
-single_pattern → "_"
-               | literal
-               | variable
-               | list_pattern
-               | record_pattern ;
-list_pattern   → "[" pattern ( "," pattern )* ","? "]" ;
-record_pattern → "{" record_pattern_item ( "," record_pattern_item )* ","? "}" ;
-record_pattern_item
-               → record_key ":" pattern ;
+# Nushell command heads are context-sensitive because known commands may have
+# multi-word names.  A parser should resolve the longest valid known command
+# name before parsing the remaining words as arguments.
+CommandName
+    <- STRING
+     / KnownCommandName
+     / IDENTIFIER
 
-## Signatures and Types
+KnownCommandName <- IDENTIFIER (IDENTIFIER)+
 
-signature      → "[" signature_param ( separator? signature_param )* separator? "]" ;
-signature_param
-               → positional_param
-               | rest_param
-               | flag_param
-               | short_only_flag ;
+Argument
+    <- Flag
+     / Spread
+     / Expression
+     / BareWord
 
-positional_param
-               → IDENTIFIER "?"? type_annotation? default_value? ;
-rest_param     → "..." IDENTIFIER type_annotation? ;
-flag_param     → "--" FLAG_NAME short_flag? type_annotation? default_value? ;
-short_only_flag
-               → "-" SHORT_FLAGS type_annotation? default_value? ;
-short_flag     → "(" "-" SHORT_FLAGS ")" ;
-default_value  → "=" expression ;
+Flag
+    <- LongFlag ((EQUAL Expression) / Expression)?
+     / ShortFlag ((EQUAL Expression) / Expression)?
 
-io_signature   → ":" in_out_type
-               | ":" "[" in_out_type ( separator? in_out_type )* separator? "]" ;
-in_out_type    → type "->" type ;
+LongFlag <- DASH2 FLAG_NAME
+ShortFlag <- DASH SHORT_FLAGS
+Spread <- DOT3 Expression
 
-type_annotation
-               → ":" type completer? ;
-completer      → "@" command_name ;
+# *** Expression level ***
 
-type_params    → "<" IDENTIFIER ( "," IDENTIFIER )* ","? ">" ;
-type           → IDENTIFIER type_args? "?"?
-               | "record" "<" record_type_fields? ">" "?"? ;
-type_args      → "<" type ( "," type )* ","? ">" ;
-record_type_fields
-               → record_type_field ( "," record_type_field )* ","? ;
-record_type_field
-               → record_key type_annotation? ;
+Expression <- RangeExpr
 
-## Imports and Modules
+RangeExpr
+    <- LogicalOr (RangeOp LogicalOr? (RangeOp LogicalOr?)?)?
+     / RangeOp LogicalOr?
 
-import_pattern → module_ref import_members? ;
-module_ref     → module_path
-               | module_name ;
-import_members → "*"
-               | command_name
-               | "[" import_member_list? "]" ;
-import_member_list
-               → import_member ( separator? import_member )* separator? ;
-import_member  → command_name
-               | STRING
-               | "*" ;
+RangeOp <- DOT2_LESS / DOT2
 
-module_name    → command_name
-               | STRING ;
-module_path    → PATH
-               | STRING ;
+LogicalOr <- LogicalXor (KEYWORD_or LogicalXor)*
+LogicalXor <- LogicalAnd (KEYWORD_xor LogicalAnd)*
+LogicalAnd <- BitOr (KEYWORD_and BitOr)*
+BitOr <- BitXor (KEYWORD_bit_or BitXor)*
+BitXor <- BitAnd (KEYWORD_bit_xor BitAnd)*
+BitAnd <- Comparison (KEYWORD_bit_and Comparison)*
 
-## Lexical Grammar
+Comparison <- Shift (CompareOp Shift)*
 
-COMMENT        → "#" any_until_newline ;
-NEWLINE        → "\n" | "\r\n" | "\x0C" ;
-INT            → sign? decimal_int
-               | sign? "0x" hex_digit+
-               | sign? "0o" oct_digit+
-               | sign? "0b" bin_digit+ ;
-FLOAT          → sign? decimal_int? "." digit+ exponent?
-               | sign? decimal_int "." digit* exponent?
-               | "Infinity" | "-Infinity" | "NaN" ;
-FILESIZE       → number filesize_unit ;
-DURATION       → number duration_unit ;
-DATE           → yyyy "-" mm "-" dd time_and_zone? ;
-BINARY         → "0x[" hex_pair* "]"
-               | "0o[" oct_digit* "]"
-               | "0b[" bin_digit* "]" ;
-BOOL           → "true" | "false" ;
+CompareOp
+    <- EQUALEQUAL
+     / EXCLAMATIONEQUAL
+     / LARROWEQUAL
+     / RARROWEQUAL
+     / LARROW
+     / RARROW
+     / EQUALTILDE
+     / EXCLAMATIONTILDE
+     / KEYWORD_not_like
+     / KEYWORD_like
+     / KEYWORD_not_in
+     / KEYWORD_in
+     / KEYWORD_not_has
+     / KEYWORD_has
+     / KEYWORD_not_starts_with
+     / KEYWORD_starts_with
+     / KEYWORD_not_ends_with
+     / KEYWORD_ends_with
+     / PLUS2
 
-STRING         → SINGLE_QUOTED_STRING
-               | DOUBLE_QUOTED_STRING
-               | BACKTICK_STRING ;
-RAW_STRING     → "r" "#"+ "'" raw_contents "'" "#"+ ;
+Shift <- Addition ((KEYWORD_bit_shl / KEYWORD_bit_shr) Addition)*
+Addition <- Multiply ((PLUS / MINUS) Multiply)*
+Multiply <- Power ((ASTERISK / SLASH2 / SLASH / KEYWORD_mod) Power)*
+Power <- Unary (ASTERISK2 Power)?
+
+Unary
+    <- (KEYWORD_not / PLUS / MINUS) Unary
+     / Postfix
+
+Postfix <- Primary CellPath?
+
+Primary
+    <- IfExpr
+     / TryExpr
+     / MatchExpr
+     / Literal
+     / Variable
+     / CellPathLiteral
+     / Table
+     / List
+     / Closure
+     / Record
+     / BlockLiteral
+     / Subexpression
+
+Literal
+    <- FILESIZE
+     / DURATION
+     / DATE
+     / BINARY
+     / INTERPOLATED_STRING
+     / RAW_STRING
+     / STRING
+     / FLOAT
+     / INT
+     / BOOL
+     / KEYWORD_null
+
+Variable
+    <- SPECIAL_VARIABLE
+     / DOLLAR IDENTIFIER
+
+SPECIAL_VARIABLE
+    <- '$NU_PLUGIN_DIRS' end_of_word skip
+     / '$NU_LIB_DIRS' end_of_word skip
+     / '$env' end_of_word skip
+     / '$in' end_of_word skip
+     / '$it' end_of_word skip
+     / '$nu' end_of_word skip
+
+CellRef
+    <- Variable CellPath?
+     / CellPathLiteral
+
+CellPathLiteral <- DOLLAR CellPath
+CellPath <- CellMember+
+CellMember <- CELL_DOT PathMember CELL_QUESTION?
+
+PathMember
+    <- STRING
+     / INT
+     / IDENTIFIER
+
+Subexpression <- LPAREN Block RPAREN
+BlockLiteral <- LBRACE Block RBRACE
+
+# *** Collection literals ***
+
+List <- LBRACKET ListItems? RBRACKET
+ListItems <- ListItem (Separator? ListItem)* Separator?
+
+ListItem
+    <- Spread
+     / Expression
+     / BareWord
+
+Table <- LBRACKET TableHeader SEMICOLON TableRow* RBRACKET
+TableHeader <- LBRACKET TableHeaderNames? RBRACKET
+TableHeaderNames <- TableHeaderName (Separator? TableHeaderName)* Separator?
+
+TableHeaderName
+    <- STRING
+     / IDENTIFIER
+
+TableRow <- LBRACKET TableRowValues? RBRACKET Separator?
+TableRowValues <- TableRowValue (Separator? TableRowValue)* Separator?
+
+TableRowValue
+    <- Expression
+     / BareWord
+
+Record <- LBRACE RecordItems? RBRACE
+RecordItems <- RecordItem (Separator? RecordItem)* Separator?
+RecordItem <- RecordKey COLON Expression
+
+RecordKey
+    <- STRING
+     / IDENTIFIER
+
+Closure
+    <- LBRACE PIPE PIPE Block RBRACE
+     / LBRACE PIPE ClosureParamList? PIPE Block RBRACE
+     / LBRACE Block RBRACE
+
+ClosureParamList <- ClosureParam (COMMA ClosureParam)* COMMA?
+ClosureParam <- IDENTIFIER TypeAnnotation?
+
+Separator <- COMMA / NEWLINE / SEMICOLON
+
+# *** Control expressions ***
+
+IfExpr <- KEYWORD_if Expression BlockLiteral ElseClause?
+
+ElseClause
+    <- KEYWORD_else IfExpr
+     / KEYWORD_else MatchExpr
+     / KEYWORD_else BlockLiteral
+
+TryExpr <- KEYWORD_try BlockLiteral CatchClause? FinallyClause?
+CatchClause <- KEYWORD_catch (Closure / BlockLiteral)
+FinallyClause <- KEYWORD_finally BlockLiteral
+
+MatchExpr <- KEYWORD_match Expression MatchBlock
+MatchBlock <- LBRACE MatchArm (Separator MatchArm)* Separator? RBRACE
+MatchArm <- Pattern Guard? FATARROW (Expression / BlockLiteral)
+Guard <- KEYWORD_if Expression
+
+Pattern <- OrPattern
+OrPattern <- SinglePattern (PIPE SinglePattern)*
+
+SinglePattern
+    <- UNDERSCORE
+     / Literal
+     / Variable
+     / ListPattern
+     / RecordPattern
+
+ListPattern <- LBRACKET Pattern (COMMA Pattern)* COMMA? RBRACKET
+RecordPattern <- LBRACE RecordPatternItem (COMMA RecordPatternItem)* COMMA? RBRACE
+RecordPatternItem <- RecordKey COLON Pattern
+
+# *** Signatures and types ***
+
+Signature <- LBRACKET SignatureParam (Separator? SignatureParam)* Separator? RBRACKET
+
+SignatureParam
+    <- RestParam
+     / FlagParam
+     / ShortOnlyFlag
+     / PositionalParam
+
+PositionalParam <- IDENTIFIER QUESTIONMARK? TypeAnnotation? DefaultValue?
+RestParam <- DOT3 IDENTIFIER TypeAnnotation?
+FlagParam <- LongFlag ShortFlagAlias? TypeAnnotation? DefaultValue?
+ShortOnlyFlag <- ShortFlag TypeAnnotation? DefaultValue?
+ShortFlagAlias <- LPAREN ShortFlag RPAREN
+DefaultValue <- EQUAL Expression
+
+IoSignature
+    <- COLON LBRACKET InOutType (Separator? InOutType)* Separator? RBRACKET
+     / COLON InOutType
+
+InOutType <- Type THINARROW Type
+
+TypeAnnotation <- COLON Type Completer?
+Completer <- AT CommandName
+
+TypeParams <- LARROW IDENTIFIER (COMMA IDENTIFIER)* COMMA? RARROW
+
+Type
+    <- KEYWORD_record LARROW RecordTypeFields? RARROW QUESTIONMARK?
+     / IDENTIFIER TypeArgs? QUESTIONMARK?
+
+TypeArgs <- LARROW Type (COMMA Type)* COMMA? RARROW
+RecordTypeFields <- RecordTypeField (COMMA RecordTypeField)* COMMA?
+RecordTypeField <- RecordKey TypeAnnotation?
+
+# *** Imports and modules ***
+
+ImportPattern <- ModuleRef ImportMembers?
+
+ModuleRef
+    <- ModulePath
+     / ModuleName
+
+ImportMembers
+    <- ASTERISK
+     / CommandName
+     / LBRACKET ImportMemberList? RBRACKET
+
+ImportMemberList <- ImportMember (Separator? ImportMember)* Separator?
+
+ImportMember
+    <- ASTERISK
+     / STRING
+     / CommandName
+
+ModuleName
+    <- STRING
+     / CommandName
+
+ModulePath
+    <- PATH
+     / STRING
+
+# *** Lexical helpers ***
+
+eof <- !.
+
+skip <- ([ \t] / LineComment)*
+LineComment <- '#' [^\n\r]*
+Shebang <- '#!' [^\n\r]* NEWLINE
+
+NEWLINE <- ('\r\n' / '\n' / '\f') skip
+
+hex <- [0-9a-fA-F]
+oct <- [0-7]
+bin <- [01]
+dec <- [0-9]
+sign <- [+-]
+dec_int <- dec ('_'? dec)*
+hex_int <- hex ('_'? hex)*
+oct_int <- oct ('_'? oct)*
+bin_int <- bin ('_'? bin)*
+number
+    <- sign? dec_int? '.' dec_int ([eE] sign? dec_int)?
+     / sign? dec_int '.' dec_int? ([eE] sign? dec_int)?
+     / sign? dec_int
+
+INT
+    <- sign? '0x' hex_int skip
+     / sign? '0o' oct_int skip
+     / sign? '0b' bin_int skip
+     / sign? dec_int skip
+
+FLOAT
+    <- sign? dec_int? '.' dec_int ([eE] sign? dec_int)? skip
+     / sign? dec_int '.' dec_int? ([eE] sign? dec_int)? skip
+     / 'Infinity' skip
+     / '-Infinity' skip
+     / 'NaN' skip
+
+FILESIZE <- number FileSizeUnit skip
+FileSizeUnit <- 'B' / 'KB' / 'KiB' / 'MB' / 'MiB' / 'GB' / 'GiB' / 'TB' / 'TiB' / 'PB' / 'PiB'
+
+DURATION <- number DurationUnit skip
+DurationUnit <- 'ns' / 'us' / 'ms' / 'sec' / 'min' / 'hr' / 'day' / 'wk'
+
+DATE <- dec dec dec dec '-' dec dec '-' dec dec DateTimeTail? skip
+DateTimeTail <- 'T' dec dec ':' dec dec ':' dec dec ('.' dec+)? TimeZone?
+TimeZone <- 'Z' / sign dec dec ':' dec dec
+
+BINARY
+    <- '0x[' (hex hex? skip)* ']' skip
+     / '0o[' (oct skip)* ']' skip
+     / '0b[' (bin skip)* ']' skip
+
+BOOL
+    <- KEYWORD_true
+     / KEYWORD_false
+
+STRING
+    <- SINGLE_QUOTED_STRING
+     / DOUBLE_QUOTED_STRING
+     / BACKTICK_STRING
+
+SINGLE_QUOTED_STRING <- ['] (!['] .)* ['] skip
+DOUBLE_QUOTED_STRING <- '"' (Escape / !["\\\n\r] .)* '"' skip
+BACKTICK_STRING <- '`' (!'`' .)* '`' skip
+RAW_STRING <- 'r' '#'+ ['] RawStringChar* ['] '#'+ skip
+RawStringChar <- !(['] '#') .
+
 INTERPOLATED_STRING
-               → "$\"" interpolation_part* "\""
-               | "$'" interpolation_part* "'" ;
-interpolation_part
-               → string_chunk
-               | "(" block ")" ;
+    <- '$"' InterpolationPart* '"' skip
+     / "$'" InterpolationPart* "'" skip
 
-bare_word      → BARE ;
-BARE           → unquoted_word_char+ ;
-IDENTIFIER     → BARE ;
-ENV_NAME       → IDENTIFIER ;
-FLAG_NAME      → IDENTIFIER ( "-" IDENTIFIER )* ;
-SHORT_FLAGS    → IDENTIFIER ;
+InterpolationPart
+    <- LPAREN Block RPAREN
+     / InterpolationChar+
 
-## Disambiguation Rules
+InterpolationChar <- Escape / ![()'"\n\r] .
+Escape <- '\\' [\\"'bnfrt()]
 
-Bare words have context-sensitive meaning:
+PATH <- PathChar+ skip
+PathChar <- ![ \t\r\n,;()\[\]{}|'"`] .
 
-bare_word      → STRING in value positions such as list items, record values, and command arguments ;
-bare_word      → command_name in command head position ;
+BareWord <- BARE
+BARE <- !Keyword BareChar+ skip
+BareChar <- ![ \t\r\n,;()\[\]{}|$'"`] .
 
-Command names are recognized at parse time. A quoted string can define or call a command name
-that contains spaces; an unquoted multi-word command name is parsed as command name parts until
-the first argument boundary.
+IDENTIFIER <- !Keyword IdentifierChar+ skip
+IdentifierChar <- ![ \t\r\n.\[\]({+\-*^/=!<>&|,;:'"`}] .
 
-Operators used as infix expressions must be tokenized as operators, not as bare command
-arguments. In parser implementations that preserve Nushell's whitespace rule, infix operators
-should have horizontal whitespace around them.
+ENV_NAME <- IdentifierChar+ skip
+FLAG_NAME <- IdentifierChar+ ('-' IdentifierChar+)* skip
+SHORT_FLAGS <- [A-Za-z]+ skip
 
-Statements such as `for`, `while`, `loop`, `return`, `break`, and `continue` are block items.
-They are not valid as middle elements of an output-producing pipeline.
+# *** Tokens ***
 
-Variable names are bare identifiers after `$`. Nushell variable names do not include structural
-or operator characters such as `.`, `[`, `(`, `{`, `+`, `-`, `*`, `^`, `/`, `=`, `!`, `<`, `>`,
-`&`, or `|`.
+SEMICOLON <- ';' skip
+COMMA <- ',' skip
+COLON <- ':' skip
+THINARROW <- '->' skip
+FATARROW <- '=>' skip
+LPAREN <- '(' skip
+RPAREN <- ')' skip
+LBRACKET <- '[' skip
+RBRACKET <- ']' skip
+LBRACE <- '{' skip
+RBRACE <- '}' skip
+AT <- '@' skip
+CARET <- '^' skip
+DOLLAR <- '$'
+UNDERSCORE <- '_' skip
+QUESTIONMARK <- '?' skip
+CELL_DOT <- '.'
+CELL_QUESTION <- '?'
 
-## References
+OUTERR_PIPE <- ('out+err>|' / 'err+out>|' / 'o+e>|' / 'e+o>|') skip
+ERR_PIPE <- ('err>|' / 'e>|') skip
+PIPE <- '|' skip
 
-The main official references used for this target grammar:
+OUTERR_APPEND <- ('out+err>>' / 'err+out>>' / 'o+e>>' / 'e+o>>') skip
+OUTERR_WRITE <- ('out+err>' / 'err+out>' / 'o+e>' / 'e+o>') skip
+ERR_APPEND <- ('err>>' / 'e>>') skip
+ERR_WRITE <- ('err>' / 'e>') skip
+OUT_APPEND <- ('out>>' / 'o>>') skip
+OUT_WRITE <- ('out>' / 'o>') skip
 
-- https://www.nushell.sh/book/pipelines.html
-- https://www.nushell.sh/book/types_of_data.html
-- https://www.nushell.sh/book/working_with_strings.html
-- https://www.nushell.sh/book/working_with_lists.html
-- https://www.nushell.sh/book/working_with_records.html
-- https://www.nushell.sh/book/working_with_tables.html
-- https://www.nushell.sh/book/navigating_structured_data.html
-- https://www.nushell.sh/book/special_variables.html
-- https://www.nushell.sh/book/custom_commands.html
-- https://www.nushell.sh/book/aliases.html
-- https://www.nushell.sh/book/operators.html
-- https://www.nushell.sh/book/variables.html
-- https://www.nushell.sh/book/control_flow.html
-- https://www.nushell.sh/book/modules/using_modules.html
-- https://www.nushell.sh/book/modules/creating_modules.html
-- https://www.nushell.sh/book/overlays.html
-- https://www.nushell.sh/book/running_externals.html
-- https://www.nushell.sh/book/stdout_stderr_exit_codes.html
-- https://www.nushell.sh/book/externs.html
+DOT3 <- '...' skip
+DOT2_LESS <- '..<' skip
+DOT2 <- '..' skip
+DOT <- '.' skip
+
+PLUS2EQUAL <- '++=' skip
+PLUS2 <- '++' skip
+PLUSEQUAL <- '+=' skip
+PLUS <- '+' skip
+MINUSEQUAL <- '-=' skip
+MINUS <- '-' skip
+ASTERISK2 <- '**' skip
+ASTERISKEQUAL <- '*=' skip
+ASTERISK <- '*' skip
+SLASH2 <- '//' skip
+SLASHEQUAL <- '/=' skip
+SLASH <- '/' skip
+EQUALEQUAL <- '==' skip
+EQUALTILDE <- '=~' skip
+EQUAL <- '=' skip
+EXCLAMATIONEQUAL <- '!=' skip
+EXCLAMATIONTILDE <- '!~' skip
+LARROWEQUAL <- '<=' skip
+LARROW <- '<' skip
+RARROWEQUAL <- '>=' skip
+RARROW <- '>' skip
+DASH2 <- '--'
+DASH <- '-'
+
+FLAG_env <- '--env' skip
+FLAG_wrapped <- '--wrapped' skip
+FLAG_prefix <- '--prefix' skip
+FLAG_keep_custom <- '--keep-custom' skip
+FLAG_keep_env <- '--keep-env' skip
+
+end_of_word <- ![A-Za-z0-9_-]
+
+KEYWORD_alias <- 'alias' end_of_word skip
+KEYWORD_and <- 'and' end_of_word skip
+KEYWORD_as <- 'as' end_of_word skip
+KEYWORD_bit_and <- 'bit-and' end_of_word skip
+KEYWORD_bit_or <- 'bit-or' end_of_word skip
+KEYWORD_bit_shl <- 'bit-shl' end_of_word skip
+KEYWORD_bit_shr <- 'bit-shr' end_of_word skip
+KEYWORD_bit_xor <- 'bit-xor' end_of_word skip
+KEYWORD_break <- 'break' end_of_word skip
+KEYWORD_catch <- 'catch' end_of_word skip
+KEYWORD_const <- 'const' end_of_word skip
+KEYWORD_continue <- 'continue' end_of_word skip
+KEYWORD_def <- 'def' end_of_word skip
+KEYWORD_else <- 'else' end_of_word skip
+KEYWORD_ends_with <- 'ends-with' end_of_word skip
+KEYWORD_export_env <- 'export-env' end_of_word skip
+KEYWORD_export <- 'export' end_of_word skip
+KEYWORD_extern <- 'extern' end_of_word skip
+KEYWORD_false <- 'false' end_of_word skip
+KEYWORD_finally <- 'finally' end_of_word skip
+KEYWORD_for <- 'for' end_of_word skip
+KEYWORD_has <- 'has' end_of_word skip
+KEYWORD_hide <- 'hide' end_of_word skip
+KEYWORD_if <- 'if' end_of_word skip
+KEYWORD_in <- 'in' end_of_word skip
+KEYWORD_let <- 'let' end_of_word skip
+KEYWORD_like <- 'like' end_of_word skip
+KEYWORD_list <- 'list' end_of_word skip
+KEYWORD_loop <- 'loop' end_of_word skip
+KEYWORD_match <- 'match' end_of_word skip
+KEYWORD_mod <- 'mod' end_of_word skip
+KEYWORD_module <- 'module' end_of_word skip
+KEYWORD_mut <- 'mut' end_of_word skip
+KEYWORD_new <- 'new' end_of_word skip
+KEYWORD_not <- 'not' end_of_word skip
+KEYWORD_not_ends_with <- 'not-ends-with' end_of_word skip
+KEYWORD_not_has <- 'not-has' end_of_word skip
+KEYWORD_not_in <- 'not-in' end_of_word skip
+KEYWORD_not_like <- 'not-like' end_of_word skip
+KEYWORD_not_starts_with <- 'not-starts-with' end_of_word skip
+KEYWORD_null <- 'null' end_of_word skip
+KEYWORD_or <- 'or' end_of_word skip
+KEYWORD_overlay <- 'overlay' end_of_word skip
+KEYWORD_plugin <- 'plugin' end_of_word skip
+KEYWORD_record <- 'record' end_of_word skip
+KEYWORD_return <- 'return' end_of_word skip
+KEYWORD_source_env <- 'source-env' end_of_word skip
+KEYWORD_source <- 'source' end_of_word skip
+KEYWORD_starts_with <- 'starts-with' end_of_word skip
+KEYWORD_true <- 'true' end_of_word skip
+KEYWORD_try <- 'try' end_of_word skip
+KEYWORD_use <- 'use' end_of_word skip
+KEYWORD_while <- 'while' end_of_word skip
+KEYWORD_xor <- 'xor' end_of_word skip
+
+Keyword
+    <- KEYWORD_alias
+     / KEYWORD_and
+     / KEYWORD_as
+     / KEYWORD_bit_and
+     / KEYWORD_bit_or
+     / KEYWORD_bit_shl
+     / KEYWORD_bit_shr
+     / KEYWORD_bit_xor
+     / KEYWORD_break
+     / KEYWORD_catch
+     / KEYWORD_const
+     / KEYWORD_continue
+     / KEYWORD_def
+     / KEYWORD_else
+     / KEYWORD_ends_with
+     / KEYWORD_export_env
+     / KEYWORD_export
+     / KEYWORD_extern
+     / KEYWORD_false
+     / KEYWORD_finally
+     / KEYWORD_for
+     / KEYWORD_has
+     / KEYWORD_hide
+     / KEYWORD_if
+     / KEYWORD_in
+     / KEYWORD_let
+     / KEYWORD_like
+     / KEYWORD_list
+     / KEYWORD_loop
+     / KEYWORD_match
+     / KEYWORD_mod
+     / KEYWORD_module
+     / KEYWORD_mut
+     / KEYWORD_new
+     / KEYWORD_not_ends_with
+     / KEYWORD_not_has
+     / KEYWORD_not_in
+     / KEYWORD_not_like
+     / KEYWORD_not_starts_with
+     / KEYWORD_not
+     / KEYWORD_null
+     / KEYWORD_or
+     / KEYWORD_overlay
+     / KEYWORD_plugin
+     / KEYWORD_record
+     / KEYWORD_return
+     / KEYWORD_source_env
+     / KEYWORD_source
+     / KEYWORD_starts_with
+     / KEYWORD_true
+     / KEYWORD_try
+     / KEYWORD_use
+     / KEYWORD_while
+     / KEYWORD_xor
+
+# *** Current repository checkpoint ***
+
+ImplementedBlockItem
+    <- DefDecl
+     / ExternDecl
+     / LetDecl
+     / MutDecl
+     / AliasDecl
+     / ForStatement
+     / WhileStatement
+     / LoopForever
+     / ReturnStatement
+     / BreakStatement
+     / ContinueStatement
+     / Assignment
+     / Pipeline
+
+ImplementedPrimary
+    <- INT
+     / FLOAT
+     / STRING
+     / BOOL
+     / KEYWORD_null
+     / Variable
+     / List
+     / Table
+     / Record
+     / Closure
+     / Subexpression
+     / IfExpr
+     / TryExpr
+     / MatchExpr
+
+ImplementedOperator
+    <- ASTERISK2
+     / ASTERISK
+     / SLASH2
+     / SLASH
+     / KEYWORD_mod
+     / PLUS2
+     / PLUS
+     / MINUS
+     / EQUALEQUAL
+     / EXCLAMATIONEQUAL
+     / LARROWEQUAL
+     / RARROWEQUAL
+     / LARROW
+     / RARROW
+     / EQUALTILDE
+     / EXCLAMATIONTILDE
+     / KEYWORD_in
+     / KEYWORD_and
+     / KEYWORD_xor
+     / KEYWORD_or
+     / AssignOp
+
+# The remaining declaration, module/import, external-command, full flag,
+# redirection, and literal forms above describe the expected Nushell target
+# surface rather than completed local implementation.
+#
+# Main references:
+# - https://codeberg.org/ziglang/zig-spec/src/branch/master/grammar/grammar.peg
+# - https://raw.githubusercontent.com/ziglang/zig-spec/master/grammar/grammar.peg
+# - https://www.nushell.sh/book/
