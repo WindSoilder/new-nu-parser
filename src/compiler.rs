@@ -156,10 +156,32 @@ impl Compiler {
         let mut result = "==== COMPILER ====\n".to_string();
 
         for (idx, ast_node) in self.ast_nodes.iter().enumerate() {
-            result.push_str(&format!(
-                "{}: {:?} ({} to {})",
-                idx, ast_node, self.spans[idx].start, self.spans[idx].end
-            ));
+            // print detail nodes if it's defined in vec.
+            let sub_nodes_formatted = match ast_node {
+                AstNode::Params(params_id) => {
+                    let params = &self.params[params_id.0];
+                    Some(
+                        params
+                            .nodes
+                            .iter()
+                            .map(|x| format!("{}", x.0))
+                            .collect::<Vec<String>>()
+                            .join(", "),
+                    )
+                }
+                _ => None,
+            };
+
+            match sub_nodes_formatted {
+                None => result.push_str(&format!(
+                    "{}: {:?} ({} to {})",
+                    idx, ast_node, self.spans[idx].start, self.spans[idx].end
+                )),
+                Some(nodes) => result.push_str(&format!(
+                    "{}: {:?} ({} to {}) - sub_nodes: {}",
+                    idx, ast_node, self.spans[idx].start, self.spans[idx].end, nodes
+                )),
+            };
 
             if matches!(
                 ast_node,
