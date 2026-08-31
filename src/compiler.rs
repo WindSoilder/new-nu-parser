@@ -218,6 +218,10 @@ impl Compiler {
             };
 
             match sub_nodes_str {
+                Some(sub_nodes) if sub_nodes.is_empty() => result.push_str(&format!(
+                    "{}: {:?} ({} to {}) - sub_nodes is empty",
+                    idx, ast_node, self.spans[idx].start, self.spans[idx].end
+                )),
                 Some(sub_nodes) => result.push_str(&format!(
                     "{}: {:?} ({} to {}) - sub_nodes: {}",
                     idx, ast_node, self.spans[idx].start, self.spans[idx].end, sub_nodes

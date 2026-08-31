@@ -12,7 +12,7 @@ pub struct Parser {
 }
 
 /// This is bottom-level ast node ids, every AstNode will be created
-/// and save in the compiler, indexed by compilder.ast_nodes
+/// and save into compilder.ast_nodes
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct NodeId(pub usize);
 
