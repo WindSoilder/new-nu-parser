@@ -156,10 +156,29 @@ impl Compiler {
         let mut result = "==== COMPILER ====\n".to_string();
 
         for (idx, ast_node) in self.ast_nodes.iter().enumerate() {
-            result.push_str(&format!(
-                "{}: {:?} ({} to {})",
-                idx, ast_node, self.spans[idx].start, self.spans[idx].end
-            ));
+            let sub_nodes_str = match ast_node {
+                AstNode::TypeArgs(type_args_id) => Some(&self.type_args[type_args_id.0].args),
+                AstNode::Params(params_id) => Some(&self.params[params_id.0].nodes),
+                _ => None,
+            }
+            .map(|nodes| {
+                nodes
+                    .iter()
+                    .map(|node_id| node_id.to_string())
+                    .collect::<Vec<String>>()
+                    .join(", ")
+            });
+
+            match sub_nodes_str {
+                Some(sub_nodes) => result.push_str(&format!(
+                    "{}: {:?} ({} to {}) - sub_nodes: {}",
+                    idx, ast_node, self.spans[idx].start, self.spans[idx].end, sub_nodes
+                )),
+                None => result.push_str(&format!(
+                    "{}: {:?} ({} to {})",
+                    idx, ast_node, self.spans[idx].start, self.spans[idx].end
+                )),
+            }
 
             if matches!(
                 ast_node,
