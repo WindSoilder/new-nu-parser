@@ -1,0 +1,175 @@
+---
+source: src/test.rs
+expression: evaluate_example(path)
+input_file: tests/grammar_forms.nu
+---
+==== COMPILER ====
+0: Variable (6 to 10) "root"
+1: String (13 to 22) ""modules""
+2: Const { variable_name: NodeId(0), ty: None, initializer: NodeId(1) } (0 to 22)
+3: Variable (36 to 42) "answer"
+4: Int (45 to 47) "42"
+5: Const { variable_name: NodeId(3), ty: None, initializer: NodeId(4) } (30 to 47)
+6: Export { declaration: NodeId(5) } (23 to 47)
+7: Name (55 to 65) "git status"
+8: FlagLong (67 to 78)
+9: FlagShort (80 to 82)
+10: Name (85 to 91) "string"
+11: Type { name: NodeId(10), args: None, optional: false } (85 to 91)
+12: String (94 to 98) ""v1""
+13: Param { name: NodeId(8), ty: Some(NodeId(11)) } (67 to 98)
+14: Name (103 to 107) "rest"
+15: Name (109 to 115) "string"
+16: Type { name: NodeId(15), args: None, optional: false } (109 to 115)
+17: Param { name: NodeId(14), ty: Some(NodeId(16)) } (100 to 115)
+18: Params(ParamsId(0)) (66 to 116)
+19: Extern { name: NodeId(7), params: NodeId(18) } (48 to 116)
+20: Name (124 to 129) "tools"
+21: Name (147 to 152) "greet"
+22: Name (154 to 158) "name"
+23: Name (160 to 166) "string"
+24: Type { name: NodeId(23), args: None, optional: false } (160 to 166)
+25: Param { name: NodeId(22), ty: Some(NodeId(24)) } (154 to 166)
+26: Params(ParamsId(1)) (153 to 167)
+27: String (170 to 183) "$"hi ($name)""
+28: Block(BlockId(0)) (168 to 185)
+29: Def { name: NodeId(21), type_params: None, params: NodeId(26), in_out_types: None, block: NodeId(28), env: false, wrapped: false } (143 to 185)
+30: Export { declaration: NodeId(29) } (136 to 185)
+31: Block(BlockId(1)) (130 to 187)
+32: Module { name: NodeId(20), block: Some(NodeId(31)) } (117 to 187)
+33: String (192 to 197) "tools"
+34: Name (198 to 199) "*"
+35: Call(CallId(0)) (192 to 199)
+36: Use { pattern: NodeId(35) } (188 to 199)
+37: String (205 to 210) "tools"
+38: String (211 to 216) "greet"
+39: Call(CallId(1)) (205 to 216)
+40: Hide { pattern: NodeId(39) } (200 to 216)
+41: String (228 to 236) ""env.nu""
+42: Source { source: NodeId(41), env: true } (217 to 236)
+43: String (248 to 259) ""plugin.nu""
+44: PluginUse { source: NodeId(43) } (237 to 259)
+45: String (268 to 271) "new"
+46: String (272 to 276) "demo"
+47: Call(CallId(2)) (268 to 276)
+48: Overlay { action: NodeId(47) } (260 to 276)
+49: Variable (281 to 285) "mask"
+50: Int (288 to 289) "1"
+51: BitOr (290 to 296)
+52: Int (297 to 298) "2"
+53: BitXor (299 to 306)
+54: Int (307 to 308) "3"
+55: BitAnd (309 to 316)
+56: Int (317 to 318) "4"
+57: BitShiftLeft (319 to 326)
+58: Int (327 to 328) "1"
+59: BinaryOp { lhs: NodeId(56), op: NodeId(57), rhs: NodeId(58) } (317 to 328)
+60: BitShiftRight (329 to 336)
+61: Int (337 to 338) "1"
+62: BinaryOp { lhs: NodeId(59), op: NodeId(60), rhs: NodeId(61) } (317 to 338)
+63: BinaryOp { lhs: NodeId(54), op: NodeId(55), rhs: NodeId(62) } (307 to 338)
+64: BinaryOp { lhs: NodeId(52), op: NodeId(53), rhs: NodeId(63) } (297 to 338)
+65: BinaryOp { lhs: NodeId(50), op: NodeId(51), rhs: NodeId(64) } (288 to 338)
+66: Let { variable_name: NodeId(49), ty: None, initializer: NodeId(65), is_mutable: false } (277 to 338)
+67: Name (339 to 344) "^echo"
+68: Int (349 to 350) "1"
+69: Int (351 to 352) "2"
+70: List(ListId(0)) (348 to 353)
+71: Spread(NodeId(70)) (345 to 353)
+72: Call(CallId(3)) (339 to 353)
+73: Name (354 to 356) "o>"
+74: String (357 to 366) ""out.txt""
+75: Redirection { source: NodeId(72), op: NodeId(73), target: NodeId(74) } (339 to 366)
+76: Block(BlockId(2)) (0 to 367)
+==== SCOPE ====
+0: Frame Scope, node_id: NodeId(76)
+  variables: [ answer: NodeId(3), mask: NodeId(49), root: NodeId(0) ]
+      decls: [ git status: NodeId(7), tools: NodeId(20) ]
+1: Frame Scope, node_id: NodeId(31)
+      decls: [ greet: NodeId(21) ]
+2: Frame Scope, node_id: NodeId(28)
+  variables: [ name: NodeId(22) ]
+==== TYPES ====
+0: string
+1: string
+2: ()
+3: int
+4: int
+5: ()
+6: ()
+7: unknown
+8: unknown
+9: unknown
+10: unknown
+11: string
+12: unknown
+13: string
+14: unknown
+15: unknown
+16: string
+17: string
+18: forbidden
+19: ()
+20: unknown
+21: unknown
+22: unknown
+23: unknown
+24: string
+25: string
+26: forbidden
+27: string
+28: string
+29: ()
+30: ()
+31: ()
+32: ()
+33: unknown
+34: string
+35: stream<binary>
+36: ()
+37: unknown
+38: string
+39: stream<binary>
+40: ()
+41: string
+42: ()
+43: string
+44: ()
+45: unknown
+46: string
+47: stream<binary>
+48: ()
+49: int
+50: int
+51: forbidden
+52: int
+53: forbidden
+54: int
+55: forbidden
+56: int
+57: forbidden
+58: int
+59: int
+60: forbidden
+61: int
+62: int
+63: int
+64: int
+65: int
+66: ()
+67: unknown
+68: int
+69: int
+70: list<int>
+71: list<int>
+72: stream<binary>
+73: forbidden
+74: string
+75: stream<binary>
+76: stream<binary>
+==== IR ====
+register_count: 0
+file_count: 0
+==== IR ERRORS ====
+Error (NodeId 2): node Const { variable_name: NodeId(0), ty: None, initializer: NodeId(1) } not suported yet
+

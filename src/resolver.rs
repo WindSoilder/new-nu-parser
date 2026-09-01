@@ -287,11 +287,13 @@ impl<'a> Resolver<'a> {
 
                 self.resolve_block(block, Some(def_scope));
             }
-            AstNode::Alias {
-                new_name,
-                old_name: _,
-            } => {
+            AstNode::Alias { new_name, old_name } => {
+                self.resolve_node(old_name);
                 self.define_decl(new_name, node_id);
+            }
+            AstNode::Extern { name, params } => {
+                self.resolve_param_types(params);
+                self.define_decl(name, node_id);
             }
             AstNode::Params(_) => {
                 let params = self.compiler.get_params(node_id);
@@ -317,6 +319,17 @@ impl<'a> Resolver<'a> {
                 self.resolve_node(initializer);
                 self.define_variable(variable_name, is_mutable)
             }
+            AstNode::Const {
+                variable_name,
+                ty,
+                initializer,
+            } => {
+                if let Some(ty) = ty {
+                    self.resolve_node(ty);
+                }
+                self.resolve_node(initializer);
+                self.define_variable(variable_name, false)
+            }
             AstNode::While { condition, block } => {
                 self.resolve_node(condition);
                 self.resolve_node(block);
@@ -337,6 +350,14 @@ impl<'a> Resolver<'a> {
             }
             AstNode::Loop { block } => {
                 self.resolve_node(block);
+            }
+            AstNode::Return(value) => {
+                if let Some(value) = value {
+                    self.resolve_node(value);
+                }
+            }
+            AstNode::UnaryOp { op: _, expr } => {
+                self.resolve_node(expr);
             }
             AstNode::BinaryOp { lhs, op: _, rhs } => {
                 self.resolve_node(lhs);
@@ -388,6 +409,32 @@ impl<'a> Resolver<'a> {
                 }
             }
             AstNode::Statement(node) => self.resolve_node(node),
+            AstNode::Spread(expr) => self.resolve_node(expr),
+            AstNode::Redirection {
+                source,
+                op: _,
+                target,
+            } => {
+                self.resolve_node(source);
+                self.resolve_node(target);
+            }
+            AstNode::EnvAssignment { name: _, value } => self.resolve_node(value),
+            AstNode::NamedValue { name: _, value } => self.resolve_node(value),
+            AstNode::Module { name, block } => {
+                self.define_decl(name, node_id);
+                if let Some(block) = block {
+                    self.resolve_node(block);
+                }
+            }
+            AstNode::Use { pattern } | AstNode::Hide { pattern } => {
+                self.resolve_node(pattern);
+            }
+            AstNode::Source { source, env: _ } | AstNode::PluginUse { source } => {
+                self.resolve_node(source);
+            }
+            AstNode::Export { declaration } => self.resolve_node(declaration),
+            AstNode::ExportEnv { block } => self.resolve_node(block),
+            AstNode::Overlay { action } => self.resolve_node(action),
             AstNode::Type { name, args, .. } => {
                 self.resolve_type(name);
                 if let Some(args) = args {
@@ -418,7 +465,6 @@ impl<'a> Resolver<'a> {
             }
             AstNode::Pipeline(pipeline_id) => self.resolve_pipeline(pipeline_id),
             AstNode::Param { .. } => (/* seems unused for now */),
-            AstNode::NamedValue { .. } => (/* seems unused for now */),
             // All remaining matches do not contain NodeId => there is nothing to resolve
             _ => (),
         }
@@ -429,6 +475,18 @@ impl<'a> Resolver<'a> {
 
         for exp in pipeline.get_expressions() {
             self.resolve_node(*exp)
+        }
+    }
+
+    fn resolve_param_types(&mut self, params_id: NodeId) {
+        let params = self.compiler.get_params(params_id);
+        for param in &params.nodes {
+            let AstNode::Param { ty, .. } = self.compiler.ast_nodes[param.0] else {
+                panic!("param is not a param");
+            };
+            if let Some(ty) = ty {
+                self.resolve_node(ty);
+            }
         }
     }
 
@@ -480,9 +538,12 @@ impl<'a> Resolver<'a> {
         // Find out the potentially longest command name
         let max_name_parts = parts
             .iter()
-            .position(|part| matches!(self.compiler.ast_nodes[part.0], AstNode::Name))
-            .expect("call does not have any name")
-            + 1;
+            .take_while(|part| matches!(self.compiler.ast_nodes[part.0], AstNode::Name))
+            .count();
+
+        if max_name_parts == 0 {
+            return;
+        }
 
         // Try to find the longest matching subcommand
         let first_start = self.compiler.spans[parts[0].0].start;

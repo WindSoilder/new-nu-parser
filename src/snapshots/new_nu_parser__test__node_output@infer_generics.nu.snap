@@ -1,6 +1,5 @@
 ---
 source: src/test.rs
-assertion_line: 77
 expression: evaluate_example(path)
 input_file: tests/infer_generics.nu
 ---
@@ -19,7 +18,7 @@ input_file: tests/infer_generics.nu
 11: Name (36 to 37) "T"
 12: Type { name: NodeId(11), args: None, optional: false } (36 to 37)
 13: TypeArgs(TypeArgsId(0)) (35 to 38)
-14: Type { name: NodeId(10), args: Some(NodeId(13)), optional: false } (31 to 35)
+14: Type { name: NodeId(10), args: Some(NodeId(13)), optional: false } (31 to 38)
 15: InOutType(NodeId(9), NodeId(14)) (20 to 39)
 16: InOutTypes(InOutTypesId(0)) (20 to 39)
 17: Variable (47 to 48) "z"
@@ -28,12 +27,12 @@ input_file: tests/infer_generics.nu
 20: Variable (54 to 56) "$x"
 21: Let { variable_name: NodeId(17), ty: Some(NodeId(19)), initializer: NodeId(20), is_mutable: false } (43 to 56)
 22: Variable (60 to 62) "$z"
-23: List(ListId(0)) (59 to 62)
+23: List(ListId(0)) (59 to 63)
 24: Block(BlockId(0)) (39 to 65)
 25: Def { name: NodeId(0), type_params: Some(NodeId(2)), params: NodeId(7), in_out_types: Some(NodeId(16)), block: NodeId(24), env: false, wrapped: false } (0 to 65)
 26: Name (67 to 68) "f"
 27: Int (69 to 70) "1"
-28: Call(CallId(0)) (69 to 70)
+28: Call(CallId(0)) (67 to 70)
 29: Block(BlockId(1)) (0 to 71)
 ==== SCOPE ====
 0: Frame Scope, node_id: NodeId(29)

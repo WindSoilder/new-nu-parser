@@ -23,6 +23,7 @@ pub struct RollbackPoint {
     idx_records: usize,
     idx_matches: usize,
     idx_type_args: usize,
+    idx_pipelines: usize,
     token_pos: usize,
 }
 
@@ -246,6 +247,7 @@ impl Compiler {
             idx_records: self.records.len(),
             idx_matches: self.matches.len(),
             idx_type_args: self.type_args.len(),
+            idx_pipelines: self.pipelines.len(),
             token_pos,
         }
     }
@@ -260,6 +262,7 @@ impl Compiler {
         self.records.truncate(rbp.idx_records);
         self.matches.truncate(rbp.idx_matches);
         self.type_args.truncate(rbp.idx_type_args);
+        self.pipelines.truncate(rbp.idx_pipelines);
         self.ast_nodes.truncate(rbp.idx_nodes);
         self.errors.truncate(rbp.idx_errors);
         self.spans.truncate(rbp.idx_span_start);

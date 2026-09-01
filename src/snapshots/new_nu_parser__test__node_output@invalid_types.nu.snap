@@ -1,6 +1,5 @@
 ---
 source: src/test.rs
-assertion_line: 77
 expression: evaluate_example(path)
 input_file: tests/invalid_types.nu
 ---
@@ -13,8 +12,8 @@ input_file: tests/invalid_types.nu
 5: Name (22 to 28) "string"
 6: Type { name: NodeId(5), args: None, optional: false } (22 to 28)
 7: TypeArgs(TypeArgsId(0)) (16 to 29)
-8: Type { name: NodeId(2), args: Some(NodeId(7)), optional: false } (12 to 16)
-9: Param { name: NodeId(1), ty: Some(NodeId(8)) } (9 to 16)
+8: Type { name: NodeId(2), args: Some(NodeId(7)), optional: false } (12 to 29)
+9: Param { name: NodeId(1), ty: Some(NodeId(8)) } (9 to 29)
 10: Params(ParamsId(0)) (8 to 30)
 11: Variable (33 to 35) "$x"
 12: Block(BlockId(0)) (31 to 37)
@@ -23,8 +22,8 @@ input_file: tests/invalid_types.nu
 15: Name (47 to 48) "y"
 16: Name (50 to 54) "list"
 17: TypeArgs(TypeArgsId(1)) (54 to 56)
-18: Type { name: NodeId(16), args: Some(NodeId(17)), optional: false } (50 to 54)
-19: Param { name: NodeId(15), ty: Some(NodeId(18)) } (47 to 54)
+18: Type { name: NodeId(16), args: Some(NodeId(17)), optional: false } (50 to 56)
+19: Param { name: NodeId(15), ty: Some(NodeId(18)) } (47 to 56)
 20: Params(ParamsId(1)) (46 to 57)
 21: Variable (60 to 62) "$y"
 22: Block(BlockId(1)) (58 to 64)

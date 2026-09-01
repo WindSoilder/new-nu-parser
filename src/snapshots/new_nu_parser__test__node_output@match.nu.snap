@@ -1,6 +1,5 @@
 ---
 source: src/test.rs
-assertion_line: 77
 expression: evaluate_example(path)
 input_file: tests/match.nu
 ---
@@ -20,15 +19,48 @@ input_file: tests/match.nu
 12: Plus (75 to 76)
 13: Variable (77 to 79) "$w"
 14: BinaryOp { lhs: NodeId(11), op: NodeId(12), rhs: NodeId(13) } (73 to 79)
-15: Block(BlockId(0)) (59 to 82)
-16: Closure { params: None, block: NodeId(15) } (53 to 83)
-17: Int (87 to 88) "3"
-18: Null (92 to 96)
-19: String (100 to 101) "_"
-20: Garbage (106 to 107)
-21: Match(MatchId(0)) (21 to 110)
-22: Let { variable_name: NodeId(3), ty: None, initializer: NodeId(21), is_mutable: false } (11 to 110)
-23: Block(BlockId(1)) (0 to 111)
-==== COMPILER ERRORS ====
-Error (NodeId 20): use null instead of ()
+15: Block(BlockId(0)) (53 to 83)
+16: Int (87 to 88) "3"
+17: Null (92 to 96)
+18: String (100 to 101) "_"
+19: Null (105 to 107)
+20: Match(MatchId(0)) (21 to 110)
+21: Let { variable_name: NodeId(3), ty: None, initializer: NodeId(20), is_mutable: false } (11 to 110)
+22: Block(BlockId(1)) (0 to 111)
+==== SCOPE ====
+0: Frame Scope, node_id: NodeId(22)
+  variables: [ foo: NodeId(3), x: NodeId(0) ]
+1: Frame Scope, node_id: NodeId(15)
+  variables: [ w: NodeId(8) ]
+==== TYPES ====
+0: int
+1: int
+2: ()
+3: oneof<int, nothing, string>
+4: int
+5: int
+6: string
+7: int
+8: int
+9: int
+10: ()
+11: int
+12: forbidden
+13: int
+14: int
+15: int
+16: int
+17: nothing
+18: string
+19: nothing
+20: oneof<int, nothing, string>
+21: ()
+22: ()
+==== TYPE ERRORS ====
+Error (NodeId 18): The types do not match
+==== IR ====
+register_count: 0
+file_count: 0
+==== IR ERRORS ====
+Error (NodeId 2): node Let { variable_name: NodeId(0), ty: None, initializer: NodeId(1), is_mutable: false } not suported yet
 

@@ -14,7 +14,7 @@ input_file: tests/if_oneof.nu
 7: Name (34 to 37) "int"
 8: Type { name: NodeId(7), args: None, optional: false } (34 to 37)
 9: TypeArgs(TypeArgsId(0)) (25 to 38)
-10: Type { name: NodeId(4), args: Some(NodeId(9)), optional: false } (20 to 25)
+10: Type { name: NodeId(4), args: Some(NodeId(9)), optional: false } (20 to 38)
 11: Variable (44 to 46) "$x"
 12: LessThan (47 to 48)
 13: Int (49 to 51) "50"
@@ -30,7 +30,7 @@ input_file: tests/if_oneof.nu
 23: Name (127 to 130) "int"
 24: Type { name: NodeId(23), args: None, optional: false } (127 to 130)
 25: TypeArgs(TypeArgsId(1)) (126 to 131)
-26: Type { name: NodeId(22), args: Some(NodeId(25)), optional: false } (121 to 126)
+26: Type { name: NodeId(22), args: Some(NodeId(25)), optional: false } (121 to 131)
 27: Variable (137 to 139) "$x"
 28: LessThan (140 to 141)
 29: Int (142 to 144) "50"
@@ -95,3 +95,4 @@ register_count: 0
 file_count: 0
 ==== IR ERRORS ====
 Error (NodeId 2): node Let { variable_name: NodeId(0), ty: None, initializer: NodeId(1), is_mutable: false } not suported yet
+
