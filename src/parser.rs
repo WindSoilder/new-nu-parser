@@ -899,15 +899,26 @@ impl Parser {
     pub fn call(&mut self) -> NodeId {
         let _span = span!();
         let span_start = self.position();
-        let mut parts = vec![self.call_name()];
+        let call_name = self.call_name();
+        let is_external = self.is_external_call_name(call_name);
+        let mut parts = vec![call_name];
         let mut is_head = true;
 
         while self.has_tokens() && !self.is_command_boundary() {
-            if self.is_name() && is_head {
+            if !is_external
+                && self.is_name()
+                && is_head
+                && !self.is_unquoted_word_argument_with_continuation()
+            {
                 parts.push(self.name());
             } else {
                 is_head = false;
-                parts.push(self.argument());
+                let arg = if is_external {
+                    self.external_argument()
+                } else {
+                    self.argument()
+                };
+                parts.push(arg);
             }
         }
 
@@ -923,11 +934,49 @@ impl Parser {
         )
     }
 
+    fn external_argument(&mut self) -> NodeId {
+        if self.is_spread() {
+            self.spread()
+        } else if self.is_external_expression_argument_start() {
+            self.expression_with_bareword(BarewordContext::String)
+        } else {
+            self.external_word_argument()
+        }
+    }
+
+    fn external_word_argument(&mut self) -> NodeId {
+        let span_start = self.position();
+        let mut span_end = span_start;
+        let mut consumed = false;
+
+        while self.has_tokens() && !self.is_command_boundary() {
+            let (token, span) = self.tokens.peek();
+            if consumed && self.has_horizontal_space_before(span.start) {
+                break;
+            }
+            if !is_external_word_token(token) {
+                break;
+            }
+
+            self.tokens.advance();
+            span_end = span.end;
+            consumed = true;
+        }
+
+        if consumed {
+            self.create_node(AstNode::String, span_start, span_end)
+        } else {
+            self.error("expected external argument")
+        }
+    }
+
     fn argument(&mut self) -> NodeId {
         if self.is_long_flag_start() || self.is_short_flag_start() {
             self.flag_argument()
         } else if self.is_spread() {
             self.spread()
+        } else if self.is_unquoted_word_argument_with_continuation() {
+            self.external_word_argument()
         } else {
             self.expression_with_bareword(BarewordContext::String)
         }
@@ -2748,6 +2797,41 @@ impl Parser {
         }
     }
 
+    fn is_external_call_name(&self, node_id: NodeId) -> bool {
+        let name = self.compiler.get_span_contents(node_id);
+        name.starts_with(b"^") || name == b"run-external"
+    }
+
+    fn is_external_expression_argument_start(&self) -> bool {
+        matches!(
+            self.tokens.peek_token(),
+            Token::DoubleQuotedString
+                | Token::SingleQuotedString
+                | Token::RawString
+                | Token::BacktickBareword
+                | Token::Datetime
+                | Token::DqStringInterpStart
+                | Token::SqStringInterpStart
+                | Token::Dollar
+                | Token::LCurly
+                | Token::LSquare
+                | Token::LParen
+        )
+    }
+
+    fn is_unquoted_word_argument_with_continuation(&mut self) -> bool {
+        if !matches!(
+            self.tokens.peek_token(),
+            Token::Bareword | Token::Int | Token::Float
+        ) {
+            return false;
+        }
+
+        self.peek_next_token().is_some_and(|(token, span)| {
+            span.start == self.tokens.peek_span().end && is_external_word_token(token)
+        })
+    }
+
     fn is_reserved_expression_word(&self) -> bool {
         [
             b"if".as_slice(),
@@ -3078,4 +3162,39 @@ impl Parser {
         let token_pos = self.compiler.apply_compiler_rollback(rbp);
         self.tokens.set_pos(token_pos);
     }
+}
+
+fn is_external_word_token(token: Token) -> bool {
+    !matches!(
+        token,
+        Token::Eof
+            | Token::Newline
+            | Token::Comment
+            | Token::Semicolon
+            | Token::Comma
+            | Token::Pipe
+            | Token::ErrGreaterThanPipe
+            | Token::OutErrGreaterThanPipe
+            | Token::LCurly
+            | Token::RCurly
+            | Token::LSquare
+            | Token::RSquare
+            | Token::LParen
+            | Token::RParen
+            | Token::StrInterpRParen
+            | Token::ThickArrow
+            | Token::DoubleQuotedString
+            | Token::SingleQuotedString
+            | Token::RawString
+            | Token::BacktickBareword
+            | Token::Datetime
+            | Token::DqStrInterp
+            | Token::SqStrInterp
+            | Token::DqStringInterpStart
+            | Token::SqStringInterpStart
+            | Token::StrInterpChunk
+            | Token::StrInterpLParen
+            | Token::StrInterpEnd
+            | Token::Dollar
+    )
 }

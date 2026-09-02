@@ -41,6 +41,7 @@ pub struct IrGenerator<'a> {
     var_map: Option<&'a [Option<NuVarId>]>,
     decl_map: Option<&'a [Option<NuDeclId>]>,
     block_map: Option<&'a [Option<NuBlockId>]>,
+    run_external_decl: Option<NuDeclId>,
     errors: Vec<SourceError>,
     block: IrBlock,
     data: Vec<u8>,
@@ -54,6 +55,7 @@ impl<'a> IrGenerator<'a> {
             var_map: None,
             decl_map: None,
             block_map: None,
+            run_external_decl: None,
             errors: Default::default(),
             block: IrBlock {
                 instructions: Default::default(),
@@ -80,6 +82,11 @@ impl<'a> IrGenerator<'a> {
         generator.decl_map = Some(decl_map);
         generator.block_map = Some(block_map);
         generator
+    }
+
+    pub fn with_run_external_decl(mut self, decl_id: Option<NuDeclId>) -> Self {
+        self.run_external_decl = decl_id;
+        self
     }
 
     /// Generates the IR from the given state of the compiler.
@@ -421,6 +428,15 @@ impl<'a> IrGenerator<'a> {
         };
 
         let name_parts = self.call_name_part_count(node_id, decl_id, &parts);
+        if let Some(run_external_decl) = self.mapped_run_external_decl(decl_id) {
+            return self.generate_run_external_call(
+                node_id,
+                &parts[name_parts..],
+                input,
+                run_external_decl,
+            );
+        }
+
         let mut compiled_args = Vec::new();
         for arg in parts.iter().copied().skip(name_parts) {
             self.compile_call_arg(arg, &mut compiled_args);
@@ -448,6 +464,10 @@ impl<'a> IrGenerator<'a> {
         parts: &[NodeId],
         input: Option<RegId>,
     ) -> RegId {
+        if let Some(decl_id) = self.run_external_decl {
+            return self.generate_run_external_call(node_id, parts, input, decl_id);
+        }
+
         if let Some(input) = input {
             self.add_instruction(node_id, Instruction::Drain { src: input });
         }
@@ -487,6 +507,56 @@ impl<'a> IrGenerator<'a> {
         }
 
         out
+    }
+
+    fn generate_run_external_call(
+        &mut self,
+        node_id: NodeId,
+        parts: &[NodeId],
+        input: Option<RegId>,
+        decl_id: NuDeclId,
+    ) -> RegId {
+        let Some((head, args)) = parts.split_first() else {
+            self.error("external call missing command name", node_id);
+            return input.unwrap_or_else(|| self.load_nothing(node_id));
+        };
+
+        let command = self.load_external_command_name(*head);
+        self.add_instruction(*head, Instruction::PushPositional { src: command });
+
+        for arg in args {
+            self.push_external_arg(*arg);
+        }
+
+        let io_reg = input.unwrap_or_else(|| self.load_nothing(node_id));
+        self.add_instruction(
+            node_id,
+            Instruction::Call {
+                decl_id,
+                src_dst: io_reg,
+            },
+        );
+        io_reg
+    }
+
+    fn push_external_arg(&mut self, node_id: NodeId) {
+        match self.compiler.ast_nodes[node_id.0] {
+            AstNode::Spread(expr) => {
+                let src = self.generate_node(expr);
+                self.add_instruction(node_id, Instruction::AppendRest { src });
+            }
+            AstNode::FlagLong
+            | AstNode::FlagShort
+            | AstNode::FlagShortGroup
+            | AstNode::NamedValue { .. } => {
+                let src = self.load_source_string(node_id);
+                self.add_instruction(node_id, Instruction::PushPositional { src });
+            }
+            _ => {
+                let src = self.generate_node(node_id);
+                self.add_instruction(node_id, Instruction::PushPositional { src });
+            }
+        }
     }
 
     fn compile_call_arg(&mut self, node_id: NodeId, compiled_args: &mut Vec<CompiledArg>) {
@@ -1405,6 +1475,20 @@ impl<'a> IrGenerator<'a> {
         self.load_literal(node_id, Literal::String(data))
     }
 
+    fn load_external_command_name(&mut self, node_id: NodeId) -> RegId {
+        match self.compiler.ast_nodes[node_id.0] {
+            AstNode::Name => {
+                let value = self.node_source_string(node_id);
+                let value = value.strip_prefix('^').unwrap_or(&value);
+                let value = trim_decl_name(value);
+                let data = self.add_data(node_id, value.as_bytes());
+                self.load_literal(node_id, Literal::String(data))
+            }
+            AstNode::String => self.load_string(node_id),
+            _ => self.generate_node(node_id),
+        }
+    }
+
     fn load_cell_path_literal(&mut self, node_id: NodeId) -> RegId {
         let members = self.cell_path_members_from_source(node_id);
         self.load_cell_path(node_id, members)
@@ -1547,6 +1631,16 @@ impl<'a> IrGenerator<'a> {
             self.error("missing runtime declaration ID mapping", node_id);
         }
         NuDeclId::new(decl_id.0)
+    }
+
+    fn mapped_run_external_decl(&self, decl_id: crate::resolver::DeclId) -> Option<NuDeclId> {
+        let run_external_decl = self.run_external_decl?;
+        let mapped = self
+            .decl_map
+            .and_then(|decl_map| decl_map.get(decl_id.0))
+            .and_then(|decl_id| *decl_id)?;
+
+        (mapped.get() == run_external_decl.get()).then_some(run_external_decl)
     }
 
     fn map_block_id(&mut self, block_id: crate::parser::BlockId, node_id: NodeId) -> NuBlockId {

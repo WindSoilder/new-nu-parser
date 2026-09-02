@@ -1,11 +1,16 @@
-use std::{collections::HashMap, process::exit, sync::Arc};
+use std::{
+    collections::HashMap,
+    io::{self, BufRead, IsTerminal},
+    process::exit,
+    sync::Arc,
+};
 
 use new_nu_parser::compiler::Compiler;
 use new_nu_parser::ir_generator::IrGenerator;
 use new_nu_parser::lexer::lex;
 use new_nu_parser::parser::{AstNode, BlockId, NodeId, Parser};
 use new_nu_parser::protocol::Declaration;
-use new_nu_parser::resolver::{DeclId, Resolver, VarId};
+use new_nu_parser::resolver::{DeclId, Resolver, VarId, Variable};
 use new_nu_parser::typechecker::Typechecker;
 use nu_protocol::{
     ast::Block as NuBlock,
@@ -13,111 +18,254 @@ use nu_protocol::{
     Category, DeclId as NuDeclId, Flag, PipelineData, PositionalArg, ShellError, Signature,
     Span as NuSpan, SyntaxShape, Type as NuType, Value, VarId as NuVarId,
 };
+use reedline::{DefaultPrompt, DefaultPromptSegment, Reedline, Signal};
 
 const RUNTIME_DECL_NODE_BASE: usize = usize::MAX / 2;
 
 fn main() {
-    let mut compiler = Compiler::new();
+    let options = Options::parse();
     let mut runtime = NuRuntime::new().unwrap_or_else(|err| {
         eprintln!("can't initialize Nushell eval engine: {err}");
         exit(1);
     });
-    let mut do_print = true;
-    let mut do_eval = true;
 
-    for arg in std::env::args().skip(1) {
-        if arg == "--no-print" {
-            do_print = false;
-        } else if arg == "--no-eval" {
-            do_eval = false;
-        }
+    let mut compiler = Compiler::new();
+    for fname in &options.files {
+        let contents = std::fs::read(fname).unwrap_or_else(|_| {
+            eprintln!("can't find {fname}");
+            exit(1);
+        });
+
+        compiler = run_source(
+            compiler,
+            &mut runtime,
+            fname,
+            &contents,
+            options.do_print,
+            options.do_eval,
+        )
+        .unwrap_or_else(|err| {
+            eprintln!("{err}");
+            exit(1);
+        });
     }
 
-    for fname in std::env::args().skip(1) {
-        if fname == "--no-print" || fname == "--no-eval" {
-            continue;
-        }
-
-        let contents = std::fs::read(&fname);
-
-        let Ok(contents) = contents else {
-            eprintln!("can't find {}", fname);
+    if options.repl {
+        run_repl(&mut runtime, options.do_print, options.do_eval).unwrap_or_else(|err| {
+            eprintln!("{err}");
             exit(1);
-        };
+        });
+    }
+}
 
-        let span_offset = compiler.span_offset();
-        compiler.add_file(&fname, &contents);
-        runtime.add_file(&fname, &contents);
+struct Options {
+    do_print: bool,
+    do_eval: bool,
+    repl: bool,
+    files: Vec<String>,
+}
 
-        let (tokens, err) = lex(&contents, span_offset);
-        if let Err(e) = err {
-            tokens.print(&compiler.source);
-            eprintln!(
-                "Lexing error. Error: {:?}, '{}'",
-                e,
-                String::from_utf8_lossy(
-                    compiler.get_span_contents_manual(e.span.start, e.span.end)
-                )
-            );
-            exit(1);
-        }
+impl Options {
+    fn parse() -> Self {
+        let mut do_eval = true;
+        let mut repl = false;
+        let mut files = Vec::new();
+        let mut print_override = None;
 
-        if do_print {
-            tokens.print(&compiler.source);
-        }
-
-        let parser = Parser::new(compiler, tokens);
-
-        compiler = parser.parse();
-
-        if do_print {
-            compiler.print();
-        }
-
-        if !compiler.errors.is_empty() {
-            exit(1);
-        }
-
-        let mut resolver = Resolver::new(&compiler);
-        resolver.resolve();
-
-        if do_print {
-            resolver.print();
-        }
-
-        compiler.merge_name_bindings(resolver.to_name_bindings());
-        runtime.bind_nushell_decls(&mut compiler);
-
-        if !compiler.errors.is_empty() {
-            exit(1);
-        }
-
-        let mut typechecker = Typechecker::new(&compiler);
-        typechecker.typecheck();
-
-        if do_print {
-            typechecker.print();
-        }
-
-        compiler.merge_types(typechecker.to_types());
-
-        let mut ir_generator = IrGenerator::new(&compiler);
-        ir_generator.generate();
-        if do_print {
-            ir_generator.print();
-        }
-
-        if !ir_generator.errors().is_empty() {
-            exit(1);
-        }
-
-        if do_eval {
-            if let Err(err) = runtime.evaluate(&compiler) {
-                eprintln!("Evaluation error. Error: {err}");
-                exit(1);
+        for arg in std::env::args().skip(1) {
+            match arg.as_str() {
+                "--no-eval" => do_eval = false,
+                "--no-print" => print_override = Some(false),
+                "--print" | "--debug" => print_override = Some(true),
+                "--repl" => repl = true,
+                "-h" | "--help" => {
+                    print_usage();
+                    exit(0);
+                }
+                _ => files.push(arg),
             }
         }
+
+        let repl = repl || files.is_empty();
+        let do_print = print_override.unwrap_or(!repl);
+
+        Self {
+            do_print,
+            do_eval,
+            repl,
+            files,
+        }
     }
+}
+
+fn print_usage() {
+    println!("usage: new-nu-parser [--repl] [--no-eval] [--no-print|--print] [file ...]");
+}
+
+fn run_repl(runtime: &mut NuRuntime, do_print: bool, do_eval: bool) -> Result<(), String> {
+    if !io::stdin().is_terminal() {
+        return run_stdin_repl(runtime, do_print, do_eval);
+    }
+
+    let mut line_editor = Reedline::create();
+    let prompt = DefaultPrompt::new(
+        DefaultPromptSegment::Basic("new-nu-parser".to_string()),
+        DefaultPromptSegment::Empty,
+    );
+    let mut entry_num = 1usize;
+
+    loop {
+        match line_editor.read_line(&prompt) {
+            Ok(Signal::Success(line)) | Ok(Signal::HostCommand(line)) => {
+                let trimmed = line.trim();
+                if trimmed.is_empty() {
+                    continue;
+                }
+                if matches!(trimmed, ":q" | ":quit") {
+                    println!();
+                    break;
+                }
+
+                runtime.clear_local_maps();
+                let fname = format!("<repl:{entry_num}>");
+                if let Err(err) = run_source(
+                    Compiler::new(),
+                    runtime,
+                    &fname,
+                    line.as_bytes(),
+                    do_print,
+                    do_eval,
+                ) {
+                    eprintln!("{err}");
+                }
+                entry_num += 1;
+            }
+            Ok(Signal::CtrlC) => {}
+            Ok(Signal::CtrlD) => {
+                println!();
+                break;
+            }
+            Ok(_) => {}
+            Err(err) => return Err(format!("REPL error. Error: {err}")),
+        }
+    }
+
+    Ok(())
+}
+
+fn run_stdin_repl(runtime: &mut NuRuntime, do_print: bool, do_eval: bool) -> Result<(), String> {
+    let stdin = io::stdin();
+    for (idx, line) in stdin.lock().lines().enumerate() {
+        let line = line.map_err(|err| format!("REPL input error. Error: {err}"))?;
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if matches!(trimmed, ":q" | ":quit") {
+            break;
+        }
+
+        runtime.clear_local_maps();
+        let fname = format!("<stdin-repl:{}>", idx + 1);
+        if let Err(err) = run_source(
+            Compiler::new(),
+            runtime,
+            &fname,
+            line.as_bytes(),
+            do_print,
+            do_eval,
+        ) {
+            eprintln!("{err}");
+        }
+    }
+
+    Ok(())
+}
+
+fn run_source(
+    mut compiler: Compiler,
+    runtime: &mut NuRuntime,
+    fname: &str,
+    contents: &[u8],
+    do_print: bool,
+    do_eval: bool,
+) -> Result<Compiler, String> {
+    let span_offset = compiler.span_offset();
+    compiler.add_file(fname, contents);
+    runtime.add_file(fname, contents);
+
+    let (tokens, err) = lex(contents, span_offset);
+    if let Err(e) = err {
+        if do_print {
+            tokens.print(&compiler.source);
+        }
+        return Err(format!(
+            "Lexing error. Error: {:?}, '{}'",
+            e,
+            String::from_utf8_lossy(compiler.get_span_contents_manual(e.span.start, e.span.end))
+        ));
+    }
+
+    if do_print {
+        tokens.print(&compiler.source);
+    }
+
+    let parser = Parser::new(compiler, tokens);
+    let mut compiler = parser.parse();
+
+    if do_print {
+        compiler.print();
+    }
+
+    if !compiler.errors.is_empty() {
+        return Err(compiler.display_state());
+    }
+
+    let mut resolver = Resolver::new(&compiler);
+    resolver.resolve();
+
+    if do_print {
+        resolver.print();
+    }
+
+    compiler.merge_name_bindings(resolver.to_name_bindings());
+    runtime.bind_nushell_vars(&mut compiler);
+    runtime.bind_nushell_decls(&mut compiler);
+
+    if !compiler.errors.is_empty() {
+        return Err(compiler.display_state());
+    }
+
+    let mut typechecker = Typechecker::new(&compiler);
+    typechecker.typecheck();
+
+    if do_print {
+        typechecker.print();
+    }
+
+    compiler.merge_types(typechecker.to_types());
+
+    if !compiler.errors.is_empty() {
+        return Err(compiler.display_state());
+    }
+
+    let mut ir_generator = IrGenerator::new(&compiler);
+    ir_generator.generate();
+    if do_print {
+        ir_generator.print();
+    }
+
+    if !ir_generator.errors().is_empty() {
+        return Err(ir_generator.display_state());
+    }
+
+    if do_eval {
+        runtime
+            .evaluate(&compiler)
+            .map_err(|err| format!("Evaluation error. Error: {err}"))?;
+    }
+
+    Ok(compiler)
 }
 
 struct NuRuntime {
@@ -163,6 +311,60 @@ impl NuRuntime {
     fn add_file(&mut self, fname: &str, contents: &[u8]) {
         self.engine_state
             .add_file(Arc::<str>::from(fname), Arc::<[u8]>::from(contents));
+    }
+
+    fn clear_local_maps(&mut self) {
+        self.var_map.clear();
+        self.decl_map.clear();
+        self.block_map.clear();
+        self.engine_decl_to_local.clear();
+    }
+
+    fn bind_nushell_vars(&mut self, compiler: &mut Compiler) {
+        let mut bindings = Vec::new();
+
+        {
+            let working_set = StateWorkingSet::new(&self.engine_state);
+
+            for node_idx in 0..compiler.ast_nodes.len() {
+                let node_id = NodeId(node_idx);
+                if !matches!(compiler.ast_nodes[node_idx], AstNode::Variable)
+                    || compiler.var_resolution.contains_key(&node_id)
+                {
+                    continue;
+                }
+
+                let name = compiler.get_span_contents(node_id);
+                if is_reserved_runtime_variable(name) {
+                    continue;
+                }
+
+                if let Some(nu_var_id) = working_set.find_variable(name) {
+                    let is_mutable = self.engine_state.get_var(nu_var_id).mutable;
+                    bindings.push((node_id, nu_var_id, is_mutable));
+                }
+            }
+        }
+
+        if bindings.is_empty() {
+            return;
+        }
+
+        for (node_id, nu_var_id, is_mutable) in &bindings {
+            let local_var_id = VarId(compiler.variables.len());
+            compiler.variables.push(Variable {
+                is_mutable: *is_mutable,
+            });
+            compiler.var_resolution.insert(*node_id, local_var_id);
+            self.var_map.resize(compiler.variables.len(), None);
+            self.var_map[local_var_id.0] = Some(*nu_var_id);
+        }
+
+        compiler.errors.retain(|err| {
+            !bindings.iter().any(|(node_id, _, _)| {
+                err.node_id == *node_id && err.message.starts_with("variable `")
+            })
+        });
     }
 
     fn bind_nushell_decls(&mut self, compiler: &mut Compiler) {
@@ -371,7 +573,8 @@ impl NuRuntime {
         info: BlockInfo,
     ) -> Result<NuBlock, String> {
         let mut ir_generator =
-            IrGenerator::with_id_maps(compiler, &self.var_map, &self.decl_map, &self.block_map);
+            IrGenerator::with_id_maps(compiler, &self.var_map, &self.decl_map, &self.block_map)
+                .with_run_external_decl(self.run_external_decl());
         ir_generator.generate_for_node(node_id);
 
         if !ir_generator.errors().is_empty() {
@@ -404,6 +607,10 @@ impl NuRuntime {
         }
 
         Ok(signature)
+    }
+
+    fn run_external_decl(&self) -> Option<NuDeclId> {
+        self.engine_state.find_decl(b"run-external", &[])
     }
 }
 
@@ -660,6 +867,10 @@ fn trim_decl_name(name: &str) -> &str {
     } else {
         name
     }
+}
+
+fn is_reserved_runtime_variable(name: &[u8]) -> bool {
+    matches!(name, b"$in" | b"$env" | b"$nu")
 }
 
 fn format_shell_error(err: ShellError) -> String {

@@ -1031,8 +1031,17 @@ impl<'a> Typechecker<'a> {
             let num_name_parts = self.compiler.decls[decl_id.0].name().split(' ').count();
             let decl_node_id = self.compiler.decl_nodes[decl_id.0];
             if decl_node_id.0 >= self.compiler.ast_nodes.len() {
+                let is_run_external = self.compiler.decls[decl_id.0].name() == "run-external";
                 for arg in &parts[num_name_parts..] {
-                    self.typecheck_loose(*arg);
+                    if is_run_external {
+                        self.typecheck_external_call_arg(*arg);
+                    } else {
+                        self.typecheck_runtime_call_arg(*arg);
+                    }
+                }
+
+                if is_run_external {
+                    return BYTE_STREAM_TYPE;
                 }
 
                 let out_types = self.decl_types[decl_id.0]
@@ -1163,14 +1172,42 @@ impl<'a> Typechecker<'a> {
         } else {
             // external call
             for part in &parts[1..] {
-                if matches!(self.compiler.ast_nodes[part.0], AstNode::Name) {
-                    self.set_node_type_id(*part, STRING_TYPE);
-                } else {
-                    self.typecheck_expr(*part, TOP_TYPE);
-                }
+                self.typecheck_external_call_arg(*part);
             }
 
             BYTE_STREAM_TYPE
+        }
+    }
+
+    fn typecheck_runtime_call_arg(&mut self, node_id: NodeId) {
+        match self.compiler.ast_nodes[node_id.0] {
+            AstNode::Name => self.set_node_type_id(node_id, STRING_TYPE),
+            AstNode::FlagLong | AstNode::FlagShort | AstNode::FlagShortGroup => {
+                self.set_node_type_id(node_id, FORBIDDEN_TYPE);
+            }
+            AstNode::NamedValue { name, value } => {
+                self.set_node_type_id(name, FORBIDDEN_TYPE);
+                self.typecheck_expr(value, TOP_TYPE);
+                self.set_node_type_id(node_id, self.type_id_of(value));
+            }
+            _ => {
+                self.typecheck_expr(node_id, TOP_TYPE);
+            }
+        }
+    }
+
+    fn typecheck_external_call_arg(&mut self, node_id: NodeId) {
+        match self.compiler.ast_nodes[node_id.0] {
+            AstNode::Name
+            | AstNode::FlagLong
+            | AstNode::FlagShort
+            | AstNode::FlagShortGroup
+            | AstNode::NamedValue { .. } => {
+                self.set_node_type_id(node_id, STRING_TYPE);
+            }
+            _ => {
+                self.typecheck_expr(node_id, TOP_TYPE);
+            }
         }
     }
 
