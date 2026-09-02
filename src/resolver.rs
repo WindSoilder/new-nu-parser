@@ -493,6 +493,10 @@ impl<'a> Resolver<'a> {
     pub fn resolve_variable(&mut self, unbound_node_id: NodeId) {
         let var_name = trim_var_name(self.compiler.get_span_contents(unbound_node_id));
 
+        if is_reserved_variable(var_name) {
+            return;
+        }
+
         if let Some(node_id) = self.find_variable(var_name) {
             let var_id = self
                 .var_resolution
@@ -720,6 +724,11 @@ fn trim_var_name(name: &[u8]) -> &[u8] {
         name
     }
 }
+
+fn is_reserved_variable(name: &[u8]) -> bool {
+    matches!(name, b"in" | b"env" | b"nu")
+}
+
 fn trim_decl_name(name: &[u8]) -> &[u8] {
     if (name.starts_with(b"'") && name.ends_with(b"'"))
         || (name.starts_with(b"\"") && name.ends_with(b"\""))

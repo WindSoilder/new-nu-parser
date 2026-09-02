@@ -7,7 +7,7 @@ use nu_protocol::ast::{
 use nu_protocol::ir::{DataSlice, Instruction, IrBlock, Literal, RedirectMode};
 use nu_protocol::{
     BlockId as NuBlockId, DeclId as NuDeclId, RegId, Span, VarId as NuVarId, ENV_VARIABLE_ID,
-    IN_VARIABLE_ID,
+    IN_VARIABLE_ID, NU_VARIABLE_ID,
 };
 
 const PLACEHOLDER_INDEX: usize = usize::MAX;
@@ -38,6 +38,9 @@ enum CompiledArg {
 pub struct IrGenerator<'a> {
     // Immutable reference to a compiler after the typechecker pass
     compiler: &'a Compiler,
+    var_map: Option<&'a [Option<NuVarId>]>,
+    decl_map: Option<&'a [Option<NuDeclId>]>,
+    block_map: Option<&'a [Option<NuBlockId>]>,
     errors: Vec<SourceError>,
     block: IrBlock,
     data: Vec<u8>,
@@ -48,6 +51,9 @@ impl<'a> IrGenerator<'a> {
     pub fn new(compiler: &'a Compiler) -> Self {
         Self {
             compiler,
+            var_map: None,
+            decl_map: None,
+            block_map: None,
             errors: Default::default(),
             block: IrBlock {
                 instructions: Default::default(),
@@ -63,6 +69,19 @@ impl<'a> IrGenerator<'a> {
         }
     }
 
+    pub fn with_id_maps(
+        compiler: &'a Compiler,
+        var_map: &'a [Option<NuVarId>],
+        decl_map: &'a [Option<NuDeclId>],
+        block_map: &'a [Option<NuBlockId>],
+    ) -> Self {
+        let mut generator = Self::new(compiler);
+        generator.var_map = Some(var_map);
+        generator.decl_map = Some(decl_map);
+        generator.block_map = Some(block_map);
+        generator
+    }
+
     /// Generates the IR from the given state of the compiler.
     /// After this is called, use `block` and `errors` to get the result.
     pub fn generate(&mut self) {
@@ -71,6 +90,14 @@ impl<'a> IrGenerator<'a> {
         }
 
         let node_id = NodeId(self.compiler.ast_nodes.len() - 1);
+        self.generate_for_node(node_id);
+    }
+
+    /// Generates IR for a specific AST node.
+    ///
+    /// This is used by the runtime bridge to lower nested blocks before installing
+    /// them into Nushell's EngineState.
+    pub fn generate_for_node(&mut self, node_id: NodeId) {
         let reg = self.generate_node(node_id);
         self.add_instruction(node_id, Instruction::Return { src: reg });
         self.block.data = self.data.clone().into();
@@ -404,10 +431,11 @@ impl<'a> IrGenerator<'a> {
         }
 
         let io_reg = input.unwrap_or_else(|| self.load_nothing(node_id));
+        let decl_id = self.map_decl_id(decl_id, node_id);
         self.add_instruction(
             node_id,
             Instruction::Call {
-                decl_id: NuDeclId::new(decl_id.0),
+                decl_id,
                 src_dst: io_reg,
             },
         );
@@ -1345,7 +1373,8 @@ impl<'a> IrGenerator<'a> {
 
     fn generate_closure(&mut self, block: NodeId, node_id: NodeId) -> RegId {
         if let AstNode::Block(block_id) = self.compiler.ast_nodes[block.0] {
-            self.load_literal(node_id, Literal::Closure(NuBlockId::new(block_id.0)))
+            let block_id = self.map_block_id(block_id, node_id);
+            self.load_literal(node_id, Literal::Closure(block_id))
         } else {
             self.error("closure body is not a block", node_id);
             self.load_nothing(node_id)
@@ -1486,17 +1515,48 @@ impl<'a> IrGenerator<'a> {
 
     fn variable_id(&mut self, node_id: NodeId) -> NuVarId {
         if let Some(var_id) = self.compiler.var_resolution.get(&node_id) {
-            NuVarId::new(var_id.0)
+            self.map_var_id(*var_id, node_id)
         } else {
             match self.node_source_string(node_id).as_str() {
                 "$in" => IN_VARIABLE_ID,
                 "$env" => ENV_VARIABLE_ID,
+                "$nu" => NU_VARIABLE_ID,
                 _ => {
                     self.error("unresolved variable in IR generation", node_id);
                     NuVarId::new(node_id.0)
                 }
             }
         }
+    }
+
+    fn map_var_id(&mut self, var_id: crate::resolver::VarId, node_id: NodeId) -> NuVarId {
+        if let Some(var_map) = self.var_map {
+            if let Some(Some(mapped)) = var_map.get(var_id.0) {
+                return *mapped;
+            }
+            self.error("missing runtime variable ID mapping", node_id);
+        }
+        NuVarId::new(var_id.0)
+    }
+
+    fn map_decl_id(&mut self, decl_id: crate::resolver::DeclId, node_id: NodeId) -> NuDeclId {
+        if let Some(decl_map) = self.decl_map {
+            if let Some(Some(mapped)) = decl_map.get(decl_id.0) {
+                return *mapped;
+            }
+            self.error("missing runtime declaration ID mapping", node_id);
+        }
+        NuDeclId::new(decl_id.0)
+    }
+
+    fn map_block_id(&mut self, block_id: crate::parser::BlockId, node_id: NodeId) -> NuBlockId {
+        if let Some(block_map) = self.block_map {
+            if let Some(Some(mapped)) = block_map.get(block_id.0) {
+                return *mapped;
+            }
+            self.error("missing runtime block ID mapping", node_id);
+        }
+        NuBlockId::new(block_id.0)
     }
 
     fn call_name_part_count(

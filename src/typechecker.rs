@@ -510,11 +510,13 @@ impl<'a> Typechecker<'a> {
                 ANY_TYPE
             }
             AstNode::Variable => {
-                let var_id = self
-                    .compiler
-                    .var_resolution
-                    .get(&node_id)
-                    .expect("missing resolved variable");
+                let Some(var_id) = self.compiler.var_resolution.get(&node_id) else {
+                    return if is_reserved_variable(self.compiler.get_span_contents(node_id)) {
+                        ANY_TYPE
+                    } else {
+                        panic!("missing resolved variable");
+                    };
+                };
 
                 self.variable_types[var_id.0]
             }
@@ -1028,6 +1030,18 @@ impl<'a> Typechecker<'a> {
         if let Some(decl_id) = self.compiler.decl_resolution.get(&node_id) {
             let num_name_parts = self.compiler.decls[decl_id.0].name().split(' ').count();
             let decl_node_id = self.compiler.decl_nodes[decl_id.0];
+            if decl_node_id.0 >= self.compiler.ast_nodes.len() {
+                for arg in &parts[num_name_parts..] {
+                    self.typecheck_loose(*arg);
+                }
+
+                let out_types = self.decl_types[decl_id.0]
+                    .clone()
+                    .iter()
+                    .map(|io| io.out_type)
+                    .collect();
+                return self.create_oneof(out_types);
+            }
             let (type_params, params) = match self.compiler.get_node(decl_node_id) {
                 AstNode::Def {
                     type_params,
@@ -2144,4 +2158,8 @@ impl<'a> Typechecker<'a> {
 
         self.create_oneof(inters)
     }
+}
+
+fn is_reserved_variable(name: &[u8]) -> bool {
+    matches!(name, b"$in" | b"$env" | b"$nu")
 }
