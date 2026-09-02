@@ -200,8 +200,38 @@ input_file: tests/infer_complex.nu
 90: ()
 91: ()
 ==== IR ====
-register_count: 0
+register_count: 17
 file_count: 0
-==== IR ERRORS ====
-Error (NodeId 48): node Def { name: NodeId(0), type_params: Some(NodeId(3)), params: NodeId(30), in_out_types: Some(NodeId(45)), block: NodeId(47), env: false, wrapped: false } not suported yet
+0: LoadLiteral { dst: RegId(0), lit: Nothing }
+1: Drain { src: RegId(0) }
+2: LoadLiteral { dst: RegId(1), lit: Nothing }
+3: Drain { src: RegId(1) }
+4: LoadLiteral { dst: RegId(2), lit: Int(0) }
+5: PushPositional { src: RegId(2) }
+6: LoadLiteral { dst: RegId(3), lit: Nothing }
+7: Call { decl_id: DeclId(1), src_dst: RegId(3) }
+8: StoreVariable { var_id: VarId(3), src: RegId(3) }
+9: LoadLiteral { dst: RegId(4), lit: Nothing }
+10: Drain { src: RegId(4) }
+11: LoadLiteral { dst: RegId(5), lit: Record { capacity: 2 } }
+12: LoadLiteral { dst: RegId(6), lit: String(DataSlice { start: 0, len: 1 }) }
+13: LoadLiteral { dst: RegId(7), lit: Int(123) }
+14: RecordInsert { src_dst: RegId(5), key: RegId(6), val: RegId(7) }
+15: LoadLiteral { dst: RegId(8), lit: String(DataSlice { start: 1, len: 1 }) }
+16: LoadVariable { dst: RegId(9), var_id: VarId(3) }
+17: RecordInsert { src_dst: RegId(5), key: RegId(8), val: RegId(9) }
+18: LoadLiteral { dst: RegId(10), lit: Record { capacity: 2 } }
+19: LoadLiteral { dst: RegId(11), lit: String(DataSlice { start: 2, len: 1 }) }
+20: LoadLiteral { dst: RegId(12), lit: Float(12.3) }
+21: RecordInsert { src_dst: RegId(10), key: RegId(11), val: RegId(12) }
+22: LoadLiteral { dst: RegId(13), lit: String(DataSlice { start: 3, len: 1 }) }
+23: LoadLiteral { dst: RegId(14), lit: String(DataSlice { start: 4, len: 3 }) }
+24: RecordInsert { src_dst: RegId(10), key: RegId(13), val: RegId(14) }
+25: PushPositional { src: RegId(5) }
+26: PushPositional { src: RegId(10) }
+27: LoadLiteral { dst: RegId(15), lit: Nothing }
+28: Call { decl_id: DeclId(0), src_dst: RegId(15) }
+29: StoreVariable { var_id: VarId(4), src: RegId(15) }
+30: LoadLiteral { dst: RegId(16), lit: Nothing }
+31: Return { src: RegId(16) }
 

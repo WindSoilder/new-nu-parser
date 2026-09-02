@@ -72,8 +72,13 @@ input_file: tests/infer_generics.nu
 28: list<int>
 29: list<int>
 ==== IR ====
-register_count: 0
+register_count: 3
 file_count: 0
-==== IR ERRORS ====
-Error (NodeId 25): node Def { name: NodeId(0), type_params: Some(NodeId(2)), params: NodeId(7), in_out_types: Some(NodeId(16)), block: NodeId(24), env: false, wrapped: false } not suported yet
+0: LoadLiteral { dst: RegId(0), lit: Nothing }
+1: Drain { src: RegId(0) }
+2: LoadLiteral { dst: RegId(1), lit: Int(1) }
+3: PushPositional { src: RegId(1) }
+4: LoadLiteral { dst: RegId(2), lit: Nothing }
+5: Call { decl_id: DeclId(0), src_dst: RegId(2) }
+6: Return { src: RegId(2) }
 

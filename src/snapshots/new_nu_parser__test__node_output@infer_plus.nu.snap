@@ -75,8 +75,23 @@ input_file: tests/infer_plus.nu
 ==== TYPE ERRORS ====
 Error (NodeId 27): Expected string, got int
 ==== IR ====
-register_count: 0
+register_count: 8
 file_count: 0
-==== IR ERRORS ====
-Error (NodeId 15): node Def { name: NodeId(0), type_params: Some(NodeId(2)), params: NodeId(7), in_out_types: Some(NodeId(13)), block: NodeId(14), env: false, wrapped: false } not suported yet
+0: LoadLiteral { dst: RegId(0), lit: Nothing }
+1: Drain { src: RegId(0) }
+2: LoadLiteral { dst: RegId(1), lit: Int(0) }
+3: PushPositional { src: RegId(1) }
+4: LoadLiteral { dst: RegId(2), lit: Nothing }
+5: Call { decl_id: DeclId(0), src_dst: RegId(2) }
+6: StoreVariable { var_id: VarId(1), src: RegId(2) }
+7: LoadLiteral { dst: RegId(3), lit: Nothing }
+8: Drain { src: RegId(3) }
+9: LoadVariable { dst: RegId(4), var_id: VarId(1) }
+10: LoadLiteral { dst: RegId(5), lit: String(DataSlice { start: 0, len: 3 }) }
+11: BinaryOp { lhs_dst: RegId(4), op: Math(Plus), rhs: RegId(5) }
+12: Drain { src: RegId(4) }
+13: LoadVariable { dst: RegId(6), var_id: VarId(1) }
+14: LoadLiteral { dst: RegId(7), lit: Int(123) }
+15: BinaryOp { lhs_dst: RegId(6), op: Math(Plus), rhs: RegId(7) }
+16: Return { src: RegId(6) }
 

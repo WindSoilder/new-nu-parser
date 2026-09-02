@@ -46,8 +46,20 @@ input_file: tests/calls_invalid.nu
 Error (NodeId 11): Expected 1 argument(s), got 2
 Error (NodeId 13): Expected int, got string
 ==== IR ====
-register_count: 0
+register_count: 6
 file_count: 0
-==== IR ERRORS ====
-Error (NodeId 7): node Def { name: NodeId(0), type_params: None, params: NodeId(5), in_out_types: None, block: NodeId(6), env: false, wrapped: false } not suported yet
+0: LoadLiteral { dst: RegId(0), lit: Nothing }
+1: Drain { src: RegId(0) }
+2: LoadLiteral { dst: RegId(1), lit: Int(1) }
+3: LoadLiteral { dst: RegId(2), lit: Int(2) }
+4: PushPositional { src: RegId(1) }
+5: PushPositional { src: RegId(2) }
+6: LoadLiteral { dst: RegId(3), lit: Nothing }
+7: Call { decl_id: DeclId(0), src_dst: RegId(3) }
+8: Drain { src: RegId(3) }
+9: LoadLiteral { dst: RegId(4), lit: String(DataSlice { start: 0, len: 6 }) }
+10: PushPositional { src: RegId(4) }
+11: LoadLiteral { dst: RegId(5), lit: Nothing }
+12: Call { decl_id: DeclId(0), src_dst: RegId(5) }
+13: Return { src: RegId(5) }
 

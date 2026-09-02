@@ -77,8 +77,46 @@ input_file: tests/for.nu
 30: ()
 31: ()
 ==== IR ====
-register_count: 0
+register_count: 20
 file_count: 0
-==== IR ERRORS ====
-Error (NodeId 2): node Let { variable_name: NodeId(0), ty: None, initializer: NodeId(1), is_mutable: true } not suported yet
+0: LoadLiteral { dst: RegId(0), lit: Int(0) }
+1: StoreVariable { var_id: VarId(0), src: RegId(0) }
+2: LoadLiteral { dst: RegId(1), lit: Nothing }
+3: Drain { src: RegId(1) }
+4: LoadLiteral { dst: RegId(2), lit: List { capacity: 3 } }
+5: LoadLiteral { dst: RegId(3), lit: Int(1) }
+6: ListPush { src_dst: RegId(2), item: RegId(3) }
+7: LoadLiteral { dst: RegId(4), lit: Int(2) }
+8: ListPush { src_dst: RegId(2), item: RegId(4) }
+9: LoadLiteral { dst: RegId(5), lit: Int(3) }
+10: ListPush { src_dst: RegId(2), item: RegId(5) }
+11: Iterate { dst: RegId(6), stream: RegId(2), end_index: 20 }
+12: StoreVariable { var_id: VarId(1), src: RegId(6) }
+13: LoadVariable { dst: RegId(7), var_id: VarId(0) }
+14: LoadVariable { dst: RegId(8), var_id: VarId(1) }
+15: BinaryOp { lhs_dst: RegId(7), op: Math(Plus), rhs: RegId(8) }
+16: StoreVariable { var_id: VarId(0), src: RegId(7) }
+17: LoadLiteral { dst: RegId(9), lit: Nothing }
+18: Drain { src: RegId(9) }
+19: Jump { index: 11 }
+20: LoadLiteral { dst: RegId(10), lit: Nothing }
+21: Drain { src: RegId(10) }
+22: LoadLiteral { dst: RegId(11), lit: List { capacity: 3 } }
+23: LoadLiteral { dst: RegId(12), lit: Int(4) }
+24: ListPush { src_dst: RegId(11), item: RegId(12) }
+25: LoadLiteral { dst: RegId(13), lit: Int(5) }
+26: ListPush { src_dst: RegId(11), item: RegId(13) }
+27: LoadLiteral { dst: RegId(14), lit: Int(6) }
+28: ListPush { src_dst: RegId(11), item: RegId(14) }
+29: Iterate { dst: RegId(15), stream: RegId(11), end_index: 38 }
+30: StoreVariable { var_id: VarId(2), src: RegId(15) }
+31: LoadVariable { dst: RegId(16), var_id: VarId(0) }
+32: LoadVariable { dst: RegId(17), var_id: VarId(2) }
+33: BinaryOp { lhs_dst: RegId(16), op: Math(Plus), rhs: RegId(17) }
+34: StoreVariable { var_id: VarId(0), src: RegId(16) }
+35: LoadLiteral { dst: RegId(18), lit: Nothing }
+36: Drain { src: RegId(18) }
+37: Jump { index: 29 }
+38: LoadLiteral { dst: RegId(19), lit: Nothing }
+39: Return { src: RegId(19) }
 

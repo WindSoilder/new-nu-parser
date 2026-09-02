@@ -89,8 +89,35 @@ input_file: tests/calls.nu
 37: stream<binary>
 38: stream<binary>
 ==== IR ====
-register_count: 0
+register_count: 14
 file_count: 0
-==== IR ERRORS ====
-Error (NodeId 7): node Call(CallId(0)) not suported yet
+0: LoadLiteral { dst: RegId(0), lit: List { capacity: 4 } }
+1: LoadLiteral { dst: RegId(1), lit: String(DataSlice { start: 0, len: 4 }) }
+2: ListPush { src_dst: RegId(0), item: RegId(1) }
+3: LoadLiteral { dst: RegId(2), lit: String(DataSlice { start: 4, len: 3 }) }
+4: ListPush { src_dst: RegId(0), item: RegId(2) }
+5: LoadLiteral { dst: RegId(3), lit: String(DataSlice { start: 7, len: 3 }) }
+6: ListPush { src_dst: RegId(0), item: RegId(3) }
+7: LoadLiteral { dst: RegId(4), lit: Int(1) }
+8: LoadLiteral { dst: RegId(5), lit: Int(2) }
+9: BinaryOp { lhs_dst: RegId(4), op: Math(Plus), rhs: RegId(5) }
+10: ListPush { src_dst: RegId(0), item: RegId(4) }
+11: Drain { src: RegId(0) }
+12: LoadLiteral { dst: RegId(6), lit: Nothing }
+13: Drain { src: RegId(6) }
+14: LoadLiteral { dst: RegId(7), lit: String(DataSlice { start: 10, len: 3 }) }
+15: LoadLiteral { dst: RegId(8), lit: String(DataSlice { start: 13, len: 2 }) }
+16: LoadLiteral { dst: RegId(9), lit: String(DataSlice { start: 15, len: 1 }) }
+17: BinaryOp { lhs_dst: RegId(8), op: Math(Plus), rhs: RegId(9) }
+18: LoadLiteral { dst: RegId(10), lit: Int(3) }
+19: PushPositional { src: RegId(7) }
+20: PushPositional { src: RegId(8) }
+21: PushPositional { src: RegId(10) }
+22: LoadLiteral { dst: RegId(11), lit: Nothing }
+23: Call { decl_id: DeclId(0), src_dst: RegId(11) }
+24: Drain { src: RegId(11) }
+25: LoadLiteral { dst: RegId(12), lit: List { capacity: 1 } }
+26: LoadLiteral { dst: RegId(13), lit: String(DataSlice { start: 16, len: 12 }) }
+27: ListPush { src_dst: RegId(12), item: RegId(13) }
+28: Return { src: RegId(12) }
 

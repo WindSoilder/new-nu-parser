@@ -2,7 +2,6 @@
 source: src/test.rs
 expression: evaluate_example(path)
 input_file: tests/pipeline.nu
-snapshot_kind: text
 ---
 ==== COMPILER ====
 0: Int (0 to 1) "1"
@@ -27,8 +26,18 @@ snapshot_kind: text
 7: int
 8: int
 ==== IR ====
-register_count: 0
+register_count: 6
 file_count: 0
-==== IR ERRORS ====
-Error (NodeId 3): node Pipeline(PipelineId(0)) not suported yet
+0: LoadLiteral { dst: RegId(0), lit: Int(1) }
+1: Drain { src: RegId(0) }
+2: LoadLiteral { dst: RegId(1), lit: Int(3) }
+3: Drain { src: RegId(1) }
+4: LoadLiteral { dst: RegId(2), lit: Int(5) }
+5: Drain { src: RegId(2) }
+6: LoadLiteral { dst: RegId(3), lit: Int(1) }
+7: Drain { src: RegId(3) }
+8: LoadLiteral { dst: RegId(4), lit: Int(2) }
+9: Drain { src: RegId(4) }
+10: LoadLiteral { dst: RegId(5), lit: Int(3) }
+11: Return { src: RegId(5) }
 

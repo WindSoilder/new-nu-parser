@@ -49,7 +49,22 @@ Error (NodeId 5): type mismatch: unsupported append between string and float
 Error (NodeId 10): Expected bool, got string
 Error (NodeId 12): Expected string, got bool
 ==== IR ====
-register_count: 0
+register_count: 8
 file_count: 0
-==== IR ERRORS ====
-Error (NodeId 0): node String not suported yet
+0: LoadLiteral { dst: RegId(0), lit: String(DataSlice { start: 0, len: 1 }) }
+1: LoadLiteral { dst: RegId(1), lit: Float(1.0) }
+2: BinaryOp { lhs_dst: RegId(0), op: Math(Plus), rhs: RegId(1) }
+3: Drain { src: RegId(0) }
+4: LoadLiteral { dst: RegId(2), lit: String(DataSlice { start: 1, len: 1 }) }
+5: LoadLiteral { dst: RegId(3), lit: Float(1.0) }
+6: BinaryOp { lhs_dst: RegId(2), op: Math(Concat), rhs: RegId(3) }
+7: Drain { src: RegId(2) }
+8: LoadLiteral { dst: RegId(4), lit: Bool(true) }
+9: LoadLiteral { dst: RegId(5), lit: String(DataSlice { start: 2, len: 1 }) }
+10: BinaryOp { lhs_dst: RegId(4), op: Boolean(And), rhs: RegId(5) }
+11: Drain { src: RegId(4) }
+12: LoadLiteral { dst: RegId(6), lit: Bool(true) }
+13: LoadLiteral { dst: RegId(7), lit: String(DataSlice { start: 3, len: 4 }) }
+14: BinaryOp { lhs_dst: RegId(6), op: Comparison(NotRegexMatch), rhs: RegId(7) }
+15: Return { src: RegId(6) }
+

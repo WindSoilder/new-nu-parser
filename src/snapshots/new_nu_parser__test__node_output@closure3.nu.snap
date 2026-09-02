@@ -59,8 +59,16 @@ input_file: tests/closure3.nu
 22: stream<binary>
 23: stream<binary>
 ==== IR ====
-register_count: 0
+register_count: 5
 file_count: 0
-==== IR ERRORS ====
-Error (NodeId 19): node Let { variable_name: NodeId(0), ty: None, initializer: NodeId(18), is_mutable: false } not suported yet
+0: LoadLiteral { dst: RegId(0), lit: Closure(BlockId(0)) }
+1: StoreVariable { var_id: VarId(2), src: RegId(0) }
+2: LoadLiteral { dst: RegId(1), lit: Nothing }
+3: Drain { src: RegId(1) }
+4: LoadLiteral { dst: RegId(2), lit: List { capacity: 2 } }
+5: LoadLiteral { dst: RegId(3), lit: String(DataSlice { start: 0, len: 6 }) }
+6: ListPush { src_dst: RegId(2), item: RegId(3) }
+7: LoadVariable { dst: RegId(4), var_id: VarId(2) }
+8: ListPush { src_dst: RegId(2), item: RegId(4) }
+9: Return { src: RegId(2) }
 

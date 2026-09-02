@@ -81,12 +81,12 @@ fn main() {
             typechecker.print();
         }
 
+        compiler.merge_types(typechecker.to_types());
+
         let mut ir_generator = IrGenerator::new(&compiler);
         ir_generator.generate();
         if do_print {
             ir_generator.print();
         }
-
-        compiler.merge_types(typechecker.to_types());
     }
 }

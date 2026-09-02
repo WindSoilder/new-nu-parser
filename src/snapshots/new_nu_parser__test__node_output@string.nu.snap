@@ -2,7 +2,6 @@
 source: src/test.rs
 expression: evaluate_example(path)
 input_file: tests/string.nu
-snapshot_kind: text
 ---
 ==== COMPILER ====
 0: String (0 to 13) ""hello world""
@@ -15,7 +14,10 @@ snapshot_kind: text
 1: string
 2: string
 ==== IR ====
-register_count: 0
+register_count: 2
 file_count: 0
-==== IR ERRORS ====
-Error (NodeId 0): node String not suported yet
+0: LoadLiteral { dst: RegId(0), lit: String(DataSlice { start: 0, len: 11 }) }
+1: Drain { src: RegId(0) }
+2: LoadLiteral { dst: RegId(1), lit: String(DataSlice { start: 11, len: 11 }) }
+3: Return { src: RegId(1) }
+

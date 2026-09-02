@@ -39,8 +39,17 @@ input_file: tests/reparse.nu
 12: ()
 13: ()
 ==== IR ====
-register_count: 0
+register_count: 6
 file_count: 0
-==== IR ERRORS ====
-Error (NodeId 7): node Let { variable_name: NodeId(0), ty: None, initializer: NodeId(6), is_mutable: false } not suported yet
+0: LoadLiteral { dst: RegId(0), lit: Closure(BlockId(0)) }
+1: StoreVariable { var_id: VarId(1), src: RegId(0) }
+2: LoadLiteral { dst: RegId(1), lit: Nothing }
+3: Drain { src: RegId(1) }
+4: LoadLiteral { dst: RegId(2), lit: Record { capacity: 1 } }
+5: LoadLiteral { dst: RegId(3), lit: String(DataSlice { start: 0, len: 1 }) }
+6: LoadLiteral { dst: RegId(4), lit: String(DataSlice { start: 1, len: 1 }) }
+7: RecordInsert { src_dst: RegId(2), key: RegId(3), val: RegId(4) }
+8: StoreVariable { var_id: VarId(2), src: RegId(2) }
+9: LoadLiteral { dst: RegId(5), lit: Nothing }
+10: Return { src: RegId(5) }
 

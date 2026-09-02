@@ -2,7 +2,6 @@
 source: src/test.rs
 expression: evaluate_example(path)
 input_file: tests/mut_.nu
-snapshot_kind: text
 ---
 ==== COMPILER ====
 0: Variable (4 to 5) "x"
@@ -64,8 +63,28 @@ snapshot_kind: text
 25: ()
 26: ()
 ==== IR ====
-register_count: 0
+register_count: 11
 file_count: 0
-==== IR ERRORS ====
-Error (NodeId 4): node Let { variable_name: NodeId(0), ty: Some(NodeId(2)), initializer: NodeId(3), is_mutable: true } not suported yet
+0: LoadLiteral { dst: RegId(0), lit: Int(123) }
+1: StoreVariable { var_id: VarId(0), src: RegId(0) }
+2: LoadLiteral { dst: RegId(1), lit: Nothing }
+3: Drain { src: RegId(1) }
+4: LoadLiteral { dst: RegId(2), lit: Int(3) }
+5: LoadLiteral { dst: RegId(3), lit: Int(456) }
+6: BinaryOp { lhs_dst: RegId(2), op: Math(Plus), rhs: RegId(3) }
+7: StoreVariable { var_id: VarId(0), src: RegId(2) }
+8: LoadLiteral { dst: RegId(4), lit: Nothing }
+9: Drain { src: RegId(4) }
+10: LoadLiteral { dst: RegId(5), lit: Int(123) }
+11: Drain { src: RegId(5) }
+12: LoadLiteral { dst: RegId(6), lit: Int(344) }
+13: StoreVariable { var_id: VarId(1), src: RegId(6) }
+14: LoadLiteral { dst: RegId(7), lit: Nothing }
+15: Drain { src: RegId(7) }
+16: LoadLiteral { dst: RegId(8), lit: Int(3) }
+17: LoadLiteral { dst: RegId(9), lit: Int(1) }
+18: BinaryOp { lhs_dst: RegId(8), op: Math(Plus), rhs: RegId(9) }
+19: StoreVariable { var_id: VarId(1), src: RegId(8) }
+20: LoadLiteral { dst: RegId(10), lit: Nothing }
+21: Return { src: RegId(10) }
 

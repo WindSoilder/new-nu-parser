@@ -91,8 +91,38 @@ input_file: tests/if_oneof.nu
 37: oneof<int, string>
 38: oneof<int, string>
 ==== IR ====
-register_count: 0
+register_count: 15
 file_count: 0
-==== IR ERRORS ====
-Error (NodeId 2): node Let { variable_name: NodeId(0), ty: None, initializer: NodeId(1), is_mutable: false } not suported yet
+0: LoadLiteral { dst: RegId(0), lit: Int(123) }
+1: StoreVariable { var_id: VarId(0), src: RegId(0) }
+2: LoadLiteral { dst: RegId(1), lit: Nothing }
+3: Drain { src: RegId(1) }
+4: LoadVariable { dst: RegId(3), var_id: VarId(0) }
+5: LoadLiteral { dst: RegId(4), lit: Int(50) }
+6: BinaryOp { lhs_dst: RegId(3), op: Comparison(LessThan), rhs: RegId(4) }
+7: Not { src_dst: RegId(3) }
+8: BranchIf { cond: RegId(3), index: 12 }
+9: LoadLiteral { dst: RegId(5), lit: String(DataSlice { start: 0, len: 3 }) }
+10: Move { dst: RegId(2), src: RegId(5) }
+11: Jump { index: 14 }
+12: LoadLiteral { dst: RegId(6), lit: Int(100) }
+13: Move { dst: RegId(2), src: RegId(6) }
+14: StoreVariable { var_id: VarId(1), src: RegId(2) }
+15: LoadLiteral { dst: RegId(7), lit: Nothing }
+16: Drain { src: RegId(7) }
+17: LoadVariable { dst: RegId(9), var_id: VarId(0) }
+18: LoadLiteral { dst: RegId(10), lit: Int(50) }
+19: BinaryOp { lhs_dst: RegId(9), op: Comparison(LessThan), rhs: RegId(10) }
+20: Not { src_dst: RegId(9) }
+21: BranchIf { cond: RegId(9), index: 25 }
+22: LoadLiteral { dst: RegId(11), lit: Int(100) }
+23: Move { dst: RegId(8), src: RegId(11) }
+24: Jump { index: 27 }
+25: LoadLiteral { dst: RegId(12), lit: Int(10) }
+26: Move { dst: RegId(8), src: RegId(12) }
+27: StoreVariable { var_id: VarId(2), src: RegId(8) }
+28: LoadLiteral { dst: RegId(13), lit: Nothing }
+29: Drain { src: RegId(13) }
+30: LoadVariable { dst: RegId(14), var_id: VarId(1) }
+31: Return { src: RegId(14) }
 

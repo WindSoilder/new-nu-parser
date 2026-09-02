@@ -86,8 +86,52 @@ input_file: tests/try.nu
 37: int
 38: int
 ==== IR ====
-register_count: 0
+register_count: 22
 file_count: 0
-==== IR ERRORS ====
-Error (NodeId 5): node Try { try_block: NodeId(4), catch_block: None, finally_block: None } not suported yet
+0: LoadLiteral { dst: RegId(1), lit: Int(1) }
+1: LoadLiteral { dst: RegId(2), lit: Int(0) }
+2: BinaryOp { lhs_dst: RegId(1), op: Math(Divide), rhs: RegId(2) }
+3: Move { dst: RegId(0), src: RegId(1) }
+4: Drain { src: RegId(0) }
+5: OnError { index: 12 }
+6: LoadLiteral { dst: RegId(4), lit: Int(1) }
+7: LoadLiteral { dst: RegId(5), lit: Int(0) }
+8: BinaryOp { lhs_dst: RegId(4), op: Math(Divide), rhs: RegId(5) }
+9: Move { dst: RegId(3), src: RegId(4) }
+10: PopErrorHandler
+11: Jump { index: 18 }
+12: LoadLiteral { dst: RegId(6), lit: List { capacity: 2 } }
+13: LoadLiteral { dst: RegId(7), lit: String(DataSlice { start: 0, len: 5 }) }
+14: ListPush { src_dst: RegId(6), item: RegId(7) }
+15: LoadLiteral { dst: RegId(8), lit: String(DataSlice { start: 5, len: 2 }) }
+16: ListPush { src_dst: RegId(6), item: RegId(8) }
+17: Move { dst: RegId(3), src: RegId(6) }
+18: Drain { src: RegId(3) }
+19: LoadLiteral { dst: RegId(10), lit: Int(1) }
+20: LoadLiteral { dst: RegId(11), lit: Int(0) }
+21: BinaryOp { lhs_dst: RegId(10), op: Math(Divide), rhs: RegId(11) }
+22: Move { dst: RegId(9), src: RegId(10) }
+23: LoadLiteral { dst: RegId(12), lit: List { capacity: 2 } }
+24: LoadLiteral { dst: RegId(13), lit: String(DataSlice { start: 7, len: 5 }) }
+25: ListPush { src_dst: RegId(12), item: RegId(13) }
+26: LoadLiteral { dst: RegId(14), lit: String(DataSlice { start: 12, len: 2 }) }
+27: ListPush { src_dst: RegId(12), item: RegId(14) }
+28: Drain { src: RegId(12) }
+29: Drain { src: RegId(9) }
+30: OnError { index: 37 }
+31: LoadLiteral { dst: RegId(16), lit: Int(1) }
+32: LoadLiteral { dst: RegId(17), lit: Int(0) }
+33: BinaryOp { lhs_dst: RegId(16), op: Math(Divide), rhs: RegId(17) }
+34: Move { dst: RegId(15), src: RegId(16) }
+35: PopErrorHandler
+36: Jump { index: 39 }
+37: LoadLiteral { dst: RegId(18), lit: Int(22) }
+38: Move { dst: RegId(15), src: RegId(18) }
+39: LoadLiteral { dst: RegId(19), lit: List { capacity: 2 } }
+40: LoadLiteral { dst: RegId(20), lit: String(DataSlice { start: 14, len: 5 }) }
+41: ListPush { src_dst: RegId(19), item: RegId(20) }
+42: LoadLiteral { dst: RegId(21), lit: String(DataSlice { start: 19, len: 2 }) }
+43: ListPush { src_dst: RegId(19), item: RegId(21) }
+44: Drain { src: RegId(19) }
+45: Return { src: RegId(15) }
 

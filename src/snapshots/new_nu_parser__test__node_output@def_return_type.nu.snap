@@ -85,8 +85,10 @@ input_file: tests/def_return_type.nu
 35: ()
 36: ()
 ==== IR ====
-register_count: 0
+register_count: 2
 file_count: 0
-==== IR ERRORS ====
-Error (NodeId 13): node Def { name: NodeId(0), type_params: None, params: NodeId(1), in_out_types: Some(NodeId(10)), block: NodeId(12), env: false, wrapped: false } not suported yet
+0: LoadLiteral { dst: RegId(0), lit: Nothing }
+1: Drain { src: RegId(0) }
+2: LoadLiteral { dst: RegId(1), lit: Nothing }
+3: Return { src: RegId(1) }
 

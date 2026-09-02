@@ -50,8 +50,46 @@ input_file: tests/list.nu
 19: list<any>
 20: list<any>
 ==== IR ====
-register_count: 0
+register_count: 20
 file_count: 0
-==== IR ERRORS ====
-Error (NodeId 3): node List(ListId(0)) not suported yet
+0: LoadLiteral { dst: RegId(0), lit: List { capacity: 3 } }
+1: LoadLiteral { dst: RegId(1), lit: Int(1) }
+2: ListPush { src_dst: RegId(0), item: RegId(1) }
+3: LoadLiteral { dst: RegId(2), lit: Int(2) }
+4: ListPush { src_dst: RegId(0), item: RegId(2) }
+5: LoadLiteral { dst: RegId(3), lit: Int(3) }
+6: ListPush { src_dst: RegId(0), item: RegId(3) }
+7: Drain { src: RegId(0) }
+8: LoadLiteral { dst: RegId(4), lit: List { capacity: 3 } }
+9: LoadLiteral { dst: RegId(5), lit: Int(0) }
+10: ListPush { src_dst: RegId(4), item: RegId(5) }
+11: LoadLiteral { dst: RegId(6), lit: Int(1) }
+12: ListPush { src_dst: RegId(4), item: RegId(6) }
+13: LoadLiteral { dst: RegId(7), lit: Int(2) }
+14: ListPush { src_dst: RegId(4), item: RegId(7) }
+15: Drain { src: RegId(4) }
+16: LoadLiteral { dst: RegId(8), lit: List { capacity: 3 } }
+17: LoadLiteral { dst: RegId(9), lit: String(DataSlice { start: 0, len: 1 }) }
+18: ListPush { src_dst: RegId(8), item: RegId(9) }
+19: LoadLiteral { dst: RegId(10), lit: String(DataSlice { start: 1, len: 1 }) }
+20: ListPush { src_dst: RegId(8), item: RegId(10) }
+21: LoadLiteral { dst: RegId(11), lit: String(DataSlice { start: 2, len: 1 }) }
+22: ListPush { src_dst: RegId(8), item: RegId(11) }
+23: Drain { src: RegId(8) }
+24: LoadLiteral { dst: RegId(12), lit: List { capacity: 3 } }
+25: LoadLiteral { dst: RegId(13), lit: Int(0) }
+26: ListPush { src_dst: RegId(12), item: RegId(13) }
+27: LoadLiteral { dst: RegId(14), lit: Int(1) }
+28: ListPush { src_dst: RegId(12), item: RegId(14) }
+29: LoadLiteral { dst: RegId(15), lit: Float(2.2) }
+30: ListPush { src_dst: RegId(12), item: RegId(15) }
+31: Drain { src: RegId(12) }
+32: LoadLiteral { dst: RegId(16), lit: List { capacity: 3 } }
+33: LoadLiteral { dst: RegId(17), lit: Int(0) }
+34: ListPush { src_dst: RegId(16), item: RegId(17) }
+35: LoadLiteral { dst: RegId(18), lit: Int(1) }
+36: ListPush { src_dst: RegId(16), item: RegId(18) }
+37: LoadLiteral { dst: RegId(19), lit: String(DataSlice { start: 3, len: 1 }) }
+38: ListPush { src_dst: RegId(16), item: RegId(19) }
+39: Return { src: RegId(16) }
 

@@ -168,8 +168,58 @@ input_file: tests/grammar_forms.nu
 75: stream<binary>
 76: stream<binary>
 ==== IR ====
-register_count: 0
-file_count: 0
-==== IR ERRORS ====
-Error (NodeId 2): node Const { variable_name: NodeId(0), ty: None, initializer: NodeId(1) } not suported yet
+register_count: 25
+file_count: 1
+0: LoadLiteral { dst: RegId(0), lit: String(DataSlice { start: 0, len: 7 }) }
+1: StoreVariable { var_id: VarId(0), src: RegId(0) }
+2: LoadLiteral { dst: RegId(1), lit: Nothing }
+3: Drain { src: RegId(1) }
+4: LoadLiteral { dst: RegId(2), lit: Int(42) }
+5: StoreVariable { var_id: VarId(1), src: RegId(2) }
+6: LoadLiteral { dst: RegId(3), lit: Nothing }
+7: Drain { src: RegId(3) }
+8: LoadLiteral { dst: RegId(4), lit: Nothing }
+9: Drain { src: RegId(4) }
+10: LoadLiteral { dst: RegId(5), lit: Nothing }
+11: Drain { src: RegId(5) }
+12: LoadLiteral { dst: RegId(6), lit: Nothing }
+13: Drain { src: RegId(6) }
+14: LoadLiteral { dst: RegId(7), lit: Nothing }
+15: Drain { src: RegId(7) }
+16: LoadLiteral { dst: RegId(8), lit: Nothing }
+17: Drain { src: RegId(8) }
+18: LoadLiteral { dst: RegId(9), lit: Nothing }
+19: Drain { src: RegId(9) }
+20: LoadLiteral { dst: RegId(10), lit: Nothing }
+21: Drain { src: RegId(10) }
+22: LoadLiteral { dst: RegId(11), lit: Int(1) }
+23: LoadLiteral { dst: RegId(12), lit: Int(2) }
+24: LoadLiteral { dst: RegId(13), lit: Int(3) }
+25: LoadLiteral { dst: RegId(14), lit: Int(4) }
+26: LoadLiteral { dst: RegId(15), lit: Int(1) }
+27: BinaryOp { lhs_dst: RegId(14), op: Bits(ShiftLeft), rhs: RegId(15) }
+28: LoadLiteral { dst: RegId(16), lit: Int(1) }
+29: BinaryOp { lhs_dst: RegId(14), op: Bits(ShiftRight), rhs: RegId(16) }
+30: BinaryOp { lhs_dst: RegId(13), op: Bits(BitAnd), rhs: RegId(14) }
+31: BinaryOp { lhs_dst: RegId(12), op: Bits(BitXor), rhs: RegId(13) }
+32: BinaryOp { lhs_dst: RegId(11), op: Bits(BitOr), rhs: RegId(12) }
+33: StoreVariable { var_id: VarId(3), src: RegId(11) }
+34: LoadLiteral { dst: RegId(17), lit: Nothing }
+35: Drain { src: RegId(17) }
+36: LoadLiteral { dst: RegId(18), lit: String(DataSlice { start: 7, len: 7 }) }
+37: OpenFile { file_num: 0, path: RegId(18), append: false }
+38: RedirectOut { mode: File { file_num: 0 } }
+39: LoadLiteral { dst: RegId(19), lit: List { capacity: 2 } }
+40: LoadLiteral { dst: RegId(20), lit: String(DataSlice { start: 14, len: 5 }) }
+41: ListPush { src_dst: RegId(19), item: RegId(20) }
+42: LoadLiteral { dst: RegId(21), lit: List { capacity: 2 } }
+43: LoadLiteral { dst: RegId(22), lit: Int(1) }
+44: ListPush { src_dst: RegId(21), item: RegId(22) }
+45: LoadLiteral { dst: RegId(23), lit: Int(2) }
+46: ListPush { src_dst: RegId(21), item: RegId(23) }
+47: ListSpread { src_dst: RegId(19), items: RegId(21) }
+48: Clone { dst: RegId(24), src: RegId(19) }
+49: WriteFile { file_num: 0, src: RegId(24) }
+50: CloseFile { file_num: 0 }
+51: Return { src: RegId(19) }
 

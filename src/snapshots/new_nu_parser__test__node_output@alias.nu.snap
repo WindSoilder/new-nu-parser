@@ -25,8 +25,11 @@ input_file: tests/alias.nu
 6: stream<binary>
 7: stream<binary>
 ==== IR ====
-register_count: 0
+register_count: 2
 file_count: 0
-==== IR ERRORS ====
-Error (NodeId 3): node Alias { new_name: NodeId(0), old_name: NodeId(2) } not suported yet
+0: LoadLiteral { dst: RegId(0), lit: Nothing }
+1: Drain { src: RegId(0) }
+2: LoadLiteral { dst: RegId(1), lit: Nothing }
+3: Call { decl_id: DeclId(0), src_dst: RegId(1) }
+4: Return { src: RegId(1) }
 

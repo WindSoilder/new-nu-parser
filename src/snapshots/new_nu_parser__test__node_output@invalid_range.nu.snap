@@ -16,8 +16,11 @@ input_file: tests/invalid_range.nu
 2: any
 3: any
 ==== IR ====
-register_count: 0
+register_count: 4
 file_count: 0
-==== IR ERRORS ====
-Error (NodeId 2): node Range { lhs: NodeId(0), rhs: NodeId(1) } not suported yet
+0: LoadLiteral { dst: RegId(0), lit: Int(1) }
+1: LoadLiteral { dst: RegId(1), lit: Nothing }
+2: LoadLiteral { dst: RegId(2), lit: Int(2) }
+3: LoadLiteral { dst: RegId(3), lit: Range { start: RegId(0), step: RegId(1), end: RegId(2), inclusion: Inclusive } }
+4: Return { src: RegId(3) }
 

@@ -20,8 +20,14 @@ input_file: tests/record.nu
 4: record<a: int, b: int>
 5: record<a: int, b: int>
 ==== IR ====
-register_count: 0
+register_count: 5
 file_count: 0
-==== IR ERRORS ====
-Error (NodeId 4): node Record(RecordId(0)) not suported yet
+0: LoadLiteral { dst: RegId(0), lit: Record { capacity: 2 } }
+1: LoadLiteral { dst: RegId(1), lit: String(DataSlice { start: 0, len: 1 }) }
+2: LoadLiteral { dst: RegId(2), lit: Int(1) }
+3: RecordInsert { src_dst: RegId(0), key: RegId(1), val: RegId(2) }
+4: LoadLiteral { dst: RegId(3), lit: String(DataSlice { start: 1, len: 1 }) }
+5: LoadLiteral { dst: RegId(4), lit: Int(2) }
+6: RecordInsert { src_dst: RegId(0), key: RegId(3), val: RegId(4) }
+7: Return { src: RegId(0) }
 

@@ -74,10 +74,42 @@ input_file: tests/binary_ops_exact.nu
 31: bool
 32: bool
 ==== IR ====
-register_count: 2
+register_count: 18
 file_count: 0
 0: LoadLiteral { dst: RegId(0), lit: Int(1) }
 1: LoadLiteral { dst: RegId(1), lit: Int(1) }
-==== IR ERRORS ====
-Error (NodeId 1): unrecognized operator Equal
+2: BinaryOp { lhs_dst: RegId(0), op: Comparison(Equal), rhs: RegId(1) }
+3: Drain { src: RegId(0) }
+4: LoadLiteral { dst: RegId(2), lit: List { capacity: 1 } }
+5: LoadLiteral { dst: RegId(3), lit: Bool(true) }
+6: ListPush { src_dst: RegId(2), item: RegId(3) }
+7: LoadLiteral { dst: RegId(4), lit: List { capacity: 1 } }
+8: LoadLiteral { dst: RegId(5), lit: Bool(false) }
+9: ListPush { src_dst: RegId(4), item: RegId(5) }
+10: BinaryOp { lhs_dst: RegId(2), op: Math(Concat), rhs: RegId(4) }
+11: Drain { src: RegId(2) }
+12: LoadLiteral { dst: RegId(6), lit: Int(1) }
+13: LoadLiteral { dst: RegId(7), lit: Int(1) }
+14: BinaryOp { lhs_dst: RegId(6), op: Math(Plus), rhs: RegId(7) }
+15: Drain { src: RegId(6) }
+16: LoadLiteral { dst: RegId(8), lit: Float(1.0) }
+17: LoadLiteral { dst: RegId(9), lit: Float(1.0) }
+18: BinaryOp { lhs_dst: RegId(8), op: Math(Plus), rhs: RegId(9) }
+19: Drain { src: RegId(8) }
+20: LoadLiteral { dst: RegId(10), lit: Bool(true) }
+21: LoadLiteral { dst: RegId(11), lit: Bool(false) }
+22: BinaryOp { lhs_dst: RegId(10), op: Boolean(And), rhs: RegId(11) }
+23: Drain { src: RegId(10) }
+24: LoadLiteral { dst: RegId(12), lit: String(DataSlice { start: 0, len: 3 }) }
+25: LoadLiteral { dst: RegId(13), lit: String(DataSlice { start: 3, len: 3 }) }
+26: BinaryOp { lhs_dst: RegId(12), op: Comparison(RegexMatch), rhs: RegId(13) }
+27: Drain { src: RegId(12) }
+28: LoadLiteral { dst: RegId(14), lit: Int(1) }
+29: LoadLiteral { dst: RegId(15), lit: List { capacity: 2 } }
+30: LoadLiteral { dst: RegId(16), lit: Int(1) }
+31: ListPush { src_dst: RegId(15), item: RegId(16) }
+32: LoadLiteral { dst: RegId(17), lit: Int(2) }
+33: ListPush { src_dst: RegId(15), item: RegId(17) }
+34: BinaryOp { lhs_dst: RegId(14), op: Comparison(In), rhs: RegId(15) }
+35: Return { src: RegId(14) }
 

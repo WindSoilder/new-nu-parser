@@ -45,7 +45,30 @@ input_file: tests/loop.nu
 15: ()
 16: ()
 ==== IR ====
-register_count: 0
+register_count: 10
 file_count: 0
-==== IR ERRORS ====
-Error (NodeId 2): node Let { variable_name: NodeId(0), ty: None, initializer: NodeId(1), is_mutable: true } not suported yet
+0: LoadLiteral { dst: RegId(0), lit: Int(0) }
+1: StoreVariable { var_id: VarId(0), src: RegId(0) }
+2: LoadLiteral { dst: RegId(1), lit: Nothing }
+3: Drain { src: RegId(1) }
+4: LoadVariable { dst: RegId(3), var_id: VarId(0) }
+5: LoadLiteral { dst: RegId(4), lit: Int(10) }
+6: BinaryOp { lhs_dst: RegId(3), op: Comparison(GreaterThan), rhs: RegId(4) }
+7: Not { src_dst: RegId(3) }
+8: BranchIf { cond: RegId(3), index: 13 }
+9: Jump { index: 22 }
+10: LoadLiteral { dst: RegId(5), lit: Nothing }
+11: Move { dst: RegId(2), src: RegId(5) }
+12: Jump { index: 14 }
+13: LoadLiteral { dst: RegId(2), lit: Nothing }
+14: Drain { src: RegId(2) }
+15: LoadVariable { dst: RegId(6), var_id: VarId(0) }
+16: LoadLiteral { dst: RegId(7), lit: Int(1) }
+17: BinaryOp { lhs_dst: RegId(6), op: Math(Plus), rhs: RegId(7) }
+18: StoreVariable { var_id: VarId(0), src: RegId(6) }
+19: LoadLiteral { dst: RegId(8), lit: Nothing }
+20: Drain { src: RegId(8) }
+21: Jump { index: 4 }
+22: LoadLiteral { dst: RegId(9), lit: Nothing }
+23: Return { src: RegId(9) }
+

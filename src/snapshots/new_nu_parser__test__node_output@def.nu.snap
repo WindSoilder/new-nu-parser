@@ -85,8 +85,8 @@ input_file: tests/def.nu
 35: ()
 36: ()
 ==== IR ====
-register_count: 0
+register_count: 1
 file_count: 0
-==== IR ERRORS ====
-Error (NodeId 35): node Def { name: NodeId(0), type_params: None, params: NodeId(28), in_out_types: None, block: NodeId(34), env: false, wrapped: false } not suported yet
+0: LoadLiteral { dst: RegId(0), lit: Nothing }
+1: Return { src: RegId(0) }
 

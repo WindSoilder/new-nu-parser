@@ -59,8 +59,48 @@ input_file: tests/match.nu
 ==== TYPE ERRORS ====
 Error (NodeId 18): The types do not match
 ==== IR ====
-register_count: 0
+register_count: 18
 file_count: 0
-==== IR ERRORS ====
-Error (NodeId 2): node Let { variable_name: NodeId(0), ty: None, initializer: NodeId(1), is_mutable: false } not suported yet
+0: LoadLiteral { dst: RegId(0), lit: Int(1) }
+1: StoreVariable { var_id: VarId(0), src: RegId(0) }
+2: LoadLiteral { dst: RegId(1), lit: Nothing }
+3: Drain { src: RegId(1) }
+4: LoadVariable { dst: RegId(3), var_id: VarId(0) }
+5: Clone { dst: RegId(4), src: RegId(3) }
+6: LoadLiteral { dst: RegId(5), lit: Int(1) }
+7: BinaryOp { lhs_dst: RegId(4), op: Comparison(Equal), rhs: RegId(5) }
+8: BranchIf { cond: RegId(4), index: 10 }
+9: Jump { index: 13 }
+10: LoadLiteral { dst: RegId(6), lit: String(DataSlice { start: 0, len: 3 }) }
+11: Move { dst: RegId(2), src: RegId(6) }
+12: Jump { index: 39 }
+13: Clone { dst: RegId(7), src: RegId(3) }
+14: LoadLiteral { dst: RegId(8), lit: Int(2) }
+15: BinaryOp { lhs_dst: RegId(7), op: Comparison(Equal), rhs: RegId(8) }
+16: BranchIf { cond: RegId(7), index: 18 }
+17: Jump { index: 27 }
+18: LoadLiteral { dst: RegId(9), lit: Int(3) }
+19: StoreVariable { var_id: VarId(1), src: RegId(9) }
+20: LoadLiteral { dst: RegId(10), lit: Nothing }
+21: Drain { src: RegId(10) }
+22: LoadLiteral { dst: RegId(11), lit: Int(2) }
+23: LoadVariable { dst: RegId(12), var_id: VarId(1) }
+24: BinaryOp { lhs_dst: RegId(11), op: Math(Plus), rhs: RegId(12) }
+25: Move { dst: RegId(2), src: RegId(11) }
+26: Jump { index: 39 }
+27: Clone { dst: RegId(13), src: RegId(3) }
+28: LoadLiteral { dst: RegId(14), lit: Int(3) }
+29: BinaryOp { lhs_dst: RegId(13), op: Comparison(Equal), rhs: RegId(14) }
+30: BranchIf { cond: RegId(13), index: 32 }
+31: Jump { index: 35 }
+32: LoadLiteral { dst: RegId(15), lit: Nothing }
+33: Move { dst: RegId(2), src: RegId(15) }
+34: Jump { index: 39 }
+35: LoadLiteral { dst: RegId(16), lit: Nothing }
+36: Move { dst: RegId(2), src: RegId(16) }
+37: Jump { index: 39 }
+38: LoadLiteral { dst: RegId(2), lit: Nothing }
+39: StoreVariable { var_id: VarId(2), src: RegId(2) }
+40: LoadLiteral { dst: RegId(17), lit: Nothing }
+41: Return { src: RegId(17) }
 
