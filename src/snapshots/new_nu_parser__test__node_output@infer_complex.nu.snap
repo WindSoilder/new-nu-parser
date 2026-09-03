@@ -218,7 +218,7 @@ file_count: 0
 13: LoadLiteral { dst: RegId(7), lit: Int(123) }
 14: RecordInsert { src_dst: RegId(5), key: RegId(6), val: RegId(7) }
 15: LoadLiteral { dst: RegId(8), lit: String(DataSlice { start: 1, len: 1 }) }
-16: LoadVariable { dst: RegId(9), var_id: VarId(3) }
+16: LoadVariable { dst: RegId(9), var_id: VarId(3), preserve_origin: false }
 17: RecordInsert { src_dst: RegId(5), key: RegId(8), val: RegId(9) }
 18: LoadLiteral { dst: RegId(10), lit: Record { capacity: 2 } }
 19: LoadLiteral { dst: RegId(11), lit: String(DataSlice { start: 2, len: 1 }) }
@@ -234,4 +234,3 @@ file_count: 0
 29: StoreVariable { var_id: VarId(4), src: RegId(15) }
 30: LoadLiteral { dst: RegId(16), lit: Nothing }
 31: Return { src: RegId(16) }
-

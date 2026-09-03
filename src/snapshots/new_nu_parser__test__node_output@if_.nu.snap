@@ -58,7 +58,7 @@ file_count: 0
 1: StoreVariable { var_id: VarId(0), src: RegId(0) }
 2: LoadLiteral { dst: RegId(1), lit: Nothing }
 3: Drain { src: RegId(1) }
-4: LoadVariable { dst: RegId(3), var_id: VarId(0) }
+4: LoadVariable { dst: RegId(3), var_id: VarId(0), preserve_origin: false }
 5: LoadLiteral { dst: RegId(4), lit: Int(100) }
 6: BinaryOp { lhs_dst: RegId(3), op: Comparison(LessThan), rhs: RegId(4) }
 7: Not { src_dst: RegId(3) }
@@ -66,7 +66,7 @@ file_count: 0
 9: LoadLiteral { dst: RegId(5), lit: Int(5) }
 10: Move { dst: RegId(2), src: RegId(5) }
 11: Jump { index: 23 }
-12: LoadVariable { dst: RegId(7), var_id: VarId(0) }
+12: LoadVariable { dst: RegId(7), var_id: VarId(0), preserve_origin: false }
 13: LoadLiteral { dst: RegId(8), lit: Int(200) }
 14: BinaryOp { lhs_dst: RegId(7), op: Comparison(GreaterThan), rhs: RegId(8) }
 15: Not { src_dst: RegId(7) }
@@ -78,4 +78,3 @@ file_count: 0
 21: Move { dst: RegId(6), src: RegId(10) }
 22: Move { dst: RegId(2), src: RegId(6) }
 23: Return { src: RegId(2) }
-

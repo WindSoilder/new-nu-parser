@@ -92,7 +92,7 @@ file_count: 0
 10: ListPush { src_dst: RegId(2), item: RegId(5) }
 11: Iterate { dst: RegId(6), stream: RegId(2), end_index: 42 }
 12: StoreVariable { var_id: VarId(1), src: RegId(6) }
-13: LoadVariable { dst: RegId(8), var_id: VarId(0) }
+13: LoadVariable { dst: RegId(8), var_id: VarId(0), preserve_origin: false }
 14: LoadLiteral { dst: RegId(9), lit: Int(2) }
 15: BinaryOp { lhs_dst: RegId(8), op: Comparison(GreaterThan), rhs: RegId(9) }
 16: Not { src_dst: RegId(8) }
@@ -103,7 +103,7 @@ file_count: 0
 21: Jump { index: 23 }
 22: LoadLiteral { dst: RegId(7), lit: Nothing }
 23: Drain { src: RegId(7) }
-24: LoadVariable { dst: RegId(12), var_id: VarId(1) }
+24: LoadVariable { dst: RegId(12), var_id: VarId(1), preserve_origin: false }
 25: LoadLiteral { dst: RegId(13), lit: Int(3) }
 26: BinaryOp { lhs_dst: RegId(12), op: Comparison(LessThan), rhs: RegId(13) }
 27: Not { src_dst: RegId(12) }
@@ -114,13 +114,12 @@ file_count: 0
 32: Jump { index: 34 }
 33: LoadLiteral { dst: RegId(11), lit: Nothing }
 34: Drain { src: RegId(11) }
-35: LoadVariable { dst: RegId(15), var_id: VarId(0) }
-36: LoadVariable { dst: RegId(16), var_id: VarId(1) }
-37: BinaryOp { lhs_dst: RegId(15), op: Math(Plus), rhs: RegId(16) }
+35: LoadVariable { dst: RegId(15), var_id: VarId(0), preserve_origin: false }
+36: LoadVariable { dst: RegId(16), var_id: VarId(1), preserve_origin: false }
+37: BinaryOp { lhs_dst: RegId(15), op: Math(Add), rhs: RegId(16) }
 38: StoreVariable { var_id: VarId(0), src: RegId(15) }
 39: LoadLiteral { dst: RegId(17), lit: Nothing }
 40: Drain { src: RegId(17) }
 41: Jump { index: 11 }
 42: LoadLiteral { dst: RegId(18), lit: Nothing }
 43: Return { src: RegId(18) }
-

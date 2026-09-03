@@ -1,8 +1,10 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
+    fs,
     io::{self, BufRead, IsTerminal},
+    path::{Path, PathBuf},
     process::exit,
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
 use new_nu_parser::compiler::Compiler;
@@ -15,12 +17,18 @@ use new_nu_parser::typechecker::Typechecker;
 use nu_protocol::{
     ast::Block as NuBlock,
     engine::{Call as NuCall, Command as NuCommand, EngineState, Stack, StateWorkingSet},
+    shell_error::generic::GenericError,
     Category, DeclId as NuDeclId, Flag, PipelineData, PositionalArg, ShellError, Signature,
     Span as NuSpan, SyntaxShape, Type as NuType, Value, VarId as NuVarId,
 };
-use reedline::{DefaultPrompt, DefaultPromptSegment, Reedline, Signal};
+use reedline::{
+    default_emacs_keybindings, ColumnarMenu, Completer as ReedlineCompleter, CompletionResult,
+    DefaultPrompt, DefaultPromptSegment, Emacs, KeyCode, KeyModifiers, MenuBuilder, Reedline,
+    ReedlineEvent, ReedlineMenu, Signal, Span as ReedlineSpan, Suggestion,
+};
 
 const RUNTIME_DECL_NODE_BASE: usize = usize::MAX / 2;
+const COMPLETION_MENU_NAME: &str = "completion_menu";
 
 fn main() {
     let options = Options::parse();
@@ -107,7 +115,7 @@ fn run_repl(runtime: &mut NuRuntime, do_print: bool, do_eval: bool) -> Result<()
         return run_stdin_repl(runtime, do_print, do_eval);
     }
 
-    let mut line_editor = Reedline::create();
+    let mut line_editor = reedline_with_nushell_completer(runtime.completion_state());
     let prompt = DefaultPrompt::new(
         DefaultPromptSegment::Basic("new-nu-parser".to_string()),
         DefaultPromptSegment::Empty,
@@ -151,6 +159,611 @@ fn run_repl(runtime: &mut NuRuntime, do_print: bool, do_eval: bool) -> Result<()
     }
 
     Ok(())
+}
+
+fn reedline_with_nushell_completer(state: Arc<Mutex<NuCompletionState>>) -> Reedline {
+    let (quick_completions, partial_completions) = state
+        .lock()
+        .map(|state| {
+            let config = state.stack.get_config(&state.engine_state);
+            (config.completions.quick, config.completions.partial)
+        })
+        .unwrap_or((true, true));
+    let completer = Box::new(NuEngineCompleter::new(state));
+    let completion_menu = Box::new(ColumnarMenu::default().with_name(COMPLETION_MENU_NAME));
+    let mut keybindings = default_emacs_keybindings();
+    keybindings.add_binding(
+        KeyModifiers::NONE,
+        KeyCode::Tab,
+        ReedlineEvent::UntilFound(vec![
+            ReedlineEvent::Menu(COMPLETION_MENU_NAME.to_string()),
+            ReedlineEvent::MenuNext,
+        ]),
+    );
+
+    Reedline::create()
+        .with_completer(completer)
+        .with_menu(ReedlineMenu::EngineCompleter(completion_menu))
+        .with_edit_mode(Box::new(Emacs::new(keybindings)))
+        .with_quick_completions(quick_completions)
+        .with_partial_completions(partial_completions)
+}
+
+#[derive(Clone)]
+struct NuCompletionState {
+    engine_state: EngineState,
+    stack: Stack,
+}
+
+impl NuCompletionState {
+    fn new(engine_state: &EngineState, stack: &Stack) -> Self {
+        Self {
+            engine_state: engine_state.clone(),
+            stack: stack.clone(),
+        }
+    }
+}
+
+struct NuEngineCompleter {
+    state: Arc<Mutex<NuCompletionState>>,
+}
+
+impl NuEngineCompleter {
+    fn new(state: Arc<Mutex<NuCompletionState>>) -> Self {
+        Self { state }
+    }
+
+    fn complete_from_state(state: &NuCompletionState, line: &str, pos: usize) -> Vec<Suggestion> {
+        let pos = clamp_to_char_boundary(line, pos.min(line.len()));
+        let word_start = current_word_start(line, pos);
+        let prefix = &line[word_start..pos];
+        let case_sensitive = state
+            .stack
+            .get_config(&state.engine_state)
+            .completions
+            .case_sensitive;
+
+        let mut suggestions = if prefix.starts_with("$env.") || prefix.starts_with('$') {
+            variable_suggestions(state, prefix, word_start, pos, case_sensitive)
+        } else if prefix.starts_with('-') {
+            flag_suggestions(state, line, word_start, prefix, pos, case_sensitive)
+        } else if is_run_external_command_arg(line, word_start) {
+            executable_suggestions(state, prefix, word_start, pos, case_sensitive)
+        } else if command_completion_prefix(state, line, word_start, prefix, case_sensitive)
+            .is_some()
+        {
+            command_suggestions(state, line, word_start, prefix, pos, case_sensitive)
+        } else {
+            path_suggestions(state, prefix, word_start, pos, case_sensitive)
+        };
+
+        suggestions.sort_by(|lhs, rhs| lhs.value.cmp(&rhs.value));
+        suggestions.dedup_by(|lhs, rhs| lhs.value == rhs.value && lhs.span == rhs.span);
+        suggestions
+    }
+}
+
+impl ReedlineCompleter for NuEngineCompleter {
+    fn complete(&mut self, line: &str, pos: usize) -> CompletionResult {
+        let Ok(state) = self.state.lock() else {
+            return CompletionResult::fresh(Vec::new());
+        };
+        CompletionResult::fresh(Self::complete_from_state(&state, line, pos))
+    }
+}
+
+fn variable_suggestions(
+    state: &NuCompletionState,
+    prefix: &str,
+    word_start: usize,
+    pos: usize,
+    case_sensitive: bool,
+) -> Vec<Suggestion> {
+    let span = ReedlineSpan::new(word_start, pos);
+    let mut suggestions = Vec::new();
+
+    if let Some(env_prefix) = prefix.strip_prefix("$env.") {
+        for name in state.stack.get_env_var_names(&state.engine_state) {
+            if matches_prefix(&name, env_prefix, case_sensitive) {
+                suggestions.push(suggestion(format!("$env.{name}"), None, span, false));
+            }
+        }
+        return suggestions;
+    }
+
+    for builtin in ["$env.", "$in", "$nu"] {
+        if matches_prefix(builtin, prefix, case_sensitive) {
+            suggestions.push(suggestion(builtin.to_string(), None, span, false));
+        }
+    }
+
+    let working_set = StateWorkingSet::new(&state.engine_state);
+    for name in working_set.list_variables() {
+        let value = String::from_utf8_lossy(name).into_owned();
+        if matches_prefix(&value, prefix, case_sensitive) {
+            suggestions.push(suggestion(value, None, span, false));
+        }
+    }
+
+    suggestions
+}
+
+fn flag_suggestions(
+    state: &NuCompletionState,
+    line: &str,
+    word_start: usize,
+    prefix: &str,
+    pos: usize,
+    case_sensitive: bool,
+) -> Vec<Suggestion> {
+    let Some(decl_id) = command_decl_before_word(state, line, word_start) else {
+        return Vec::new();
+    };
+    let decl = state.engine_state.get_decl(decl_id);
+    if decl.name() == "run-external" || line_command_head(line, word_start).starts_with('^') {
+        return Vec::new();
+    }
+
+    let mut signature = state.engine_state.get_signature(decl);
+    signature = signature.update_from_command(decl);
+    let mut suggestions = Vec::new();
+    let span = ReedlineSpan::new(word_start, pos);
+
+    for flag in &signature.named {
+        let long = format!("--{}", flag.long);
+        if matches_prefix(&long, prefix, case_sensitive) {
+            suggestions.push(suggestion(
+                long,
+                non_empty_description(&flag.desc),
+                span,
+                flag.arg.is_none(),
+            ));
+        }
+
+        if let Some(short) = flag.short {
+            let short = format!("-{short}");
+            if matches_prefix(&short, prefix, case_sensitive) {
+                suggestions.push(suggestion(
+                    short,
+                    non_empty_description(&flag.desc),
+                    span,
+                    flag.arg.is_none(),
+                ));
+            }
+        }
+    }
+
+    if matches_prefix("--help", prefix, case_sensitive) {
+        suggestions.push(suggestion(
+            "--help".to_string(),
+            Some("Display help for this command".to_string()),
+            span,
+            true,
+        ));
+    }
+
+    suggestions
+}
+
+fn command_suggestions(
+    state: &NuCompletionState,
+    line: &str,
+    word_start: usize,
+    prefix: &str,
+    pos: usize,
+    case_sensitive: bool,
+) -> Vec<Suggestion> {
+    let Some(command_prefix) =
+        command_completion_prefix(state, line, word_start, prefix, case_sensitive)
+    else {
+        return Vec::new();
+    };
+    let span = ReedlineSpan::new(word_start, pos);
+    let mut seen = HashSet::new();
+    let mut suggestions = Vec::new();
+
+    let working_set = StateWorkingSet::new(&state.engine_state);
+    for (_, name, description, _) in working_set.find_commands_by_predicate(
+        |name| {
+            let name = String::from_utf8_lossy(name);
+            matches_prefix(&name, &command_prefix.full, case_sensitive)
+        },
+        true,
+    ) {
+        let name = String::from_utf8_lossy(&name).into_owned();
+        let value = if command_prefix.base.is_empty() {
+            name.clone()
+        } else if let Some(rest) = name.strip_prefix(&(command_prefix.base.clone() + " ")) {
+            rest.to_string()
+        } else {
+            continue;
+        };
+
+        if seen.insert(value.clone()) {
+            suggestions.push(suggestion(value, description, span, true));
+        }
+    }
+
+    if command_prefix.base.is_empty() {
+        suggestions.extend(executable_suggestions(
+            state,
+            prefix,
+            word_start,
+            pos,
+            case_sensitive,
+        ));
+    }
+
+    suggestions
+}
+
+fn path_suggestions(
+    state: &NuCompletionState,
+    prefix: &str,
+    word_start: usize,
+    pos: usize,
+    case_sensitive: bool,
+) -> Vec<Suggestion> {
+    let cwd = state
+        .engine_state
+        .cwd(Some(&state.stack))
+        .map(|cwd| cwd.into_std_path_buf())
+        .unwrap_or_else(|_| PathBuf::from("."));
+
+    complete_path_from_dir(&cwd, prefix, word_start, pos, case_sensitive)
+}
+
+fn executable_suggestions(
+    state: &NuCompletionState,
+    prefix: &str,
+    word_start: usize,
+    pos: usize,
+    case_sensitive: bool,
+) -> Vec<Suggestion> {
+    let mut suggestions = Vec::new();
+    let mut seen = HashSet::new();
+    let (external_prefix, insert_caret) = prefix
+        .strip_prefix('^')
+        .map_or((prefix, false), |prefix| (prefix, true));
+    let span = ReedlineSpan::new(word_start, pos);
+
+    for path in executable_search_paths(state) {
+        let Ok(entries) = fs::read_dir(path) else {
+            continue;
+        };
+
+        for entry in entries.flatten() {
+            let Ok(file_type) = entry.file_type() else {
+                continue;
+            };
+            if !file_type.is_file() && !file_type.is_symlink() {
+                continue;
+            }
+
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if !matches_prefix(&name, external_prefix, case_sensitive) {
+                continue;
+            }
+
+            let value = if insert_caret {
+                format!("^{name}")
+            } else {
+                name
+            };
+            if seen.insert(value.clone()) {
+                suggestions.push(suggestion(
+                    value,
+                    Some("external command".to_string()),
+                    span,
+                    true,
+                ));
+            }
+        }
+    }
+
+    suggestions
+}
+
+fn complete_path_from_dir(
+    cwd: &Path,
+    prefix: &str,
+    word_start: usize,
+    pos: usize,
+    case_sensitive: bool,
+) -> Vec<Suggestion> {
+    let (dir_text, item_prefix) = split_path_prefix(prefix);
+    let base_dir = if dir_text.is_empty() {
+        cwd.to_path_buf()
+    } else {
+        let dir = expand_tilde(dir_text);
+        if dir.is_absolute() {
+            dir
+        } else {
+            cwd.join(dir)
+        }
+    };
+
+    let Ok(entries) = fs::read_dir(base_dir) else {
+        return Vec::new();
+    };
+
+    let include_hidden = item_prefix.starts_with('.');
+    let span = ReedlineSpan::new(word_start, pos);
+    let mut suggestions = Vec::new();
+
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if !include_hidden && name.starts_with('.') {
+            continue;
+        }
+        if !matches_prefix(&name, item_prefix, case_sensitive) {
+            continue;
+        }
+
+        let suffix = entry
+            .file_type()
+            .ok()
+            .filter(|file_type| file_type.is_dir())
+            .map_or("", |_| "/");
+        let value = format!("{dir_text}{name}{suffix}");
+        let description = entry
+            .file_type()
+            .ok()
+            .filter(|file_type| file_type.is_dir())
+            .map(|_| "directory".to_string());
+        suggestions.push(suggestion(value, description, span, suffix.is_empty()));
+    }
+
+    suggestions
+}
+
+#[derive(Debug)]
+struct CommandCompletionPrefix {
+    base: String,
+    full: String,
+}
+
+fn command_completion_prefix(
+    state: &NuCompletionState,
+    line: &str,
+    word_start: usize,
+    prefix: &str,
+    case_sensitive: bool,
+) -> Option<CommandCompletionPrefix> {
+    if prefix.starts_with('-') {
+        return None;
+    }
+
+    let command_start = command_segment_start(line, word_start);
+    let before_current = line[command_start..word_start].trim();
+    let words = simple_words(before_current);
+
+    if words.first().is_some_and(|word| word.starts_with('^')) {
+        return Some(CommandCompletionPrefix {
+            base: String::new(),
+            full: prefix.to_string(),
+        });
+    }
+
+    if words.is_empty() {
+        return Some(CommandCompletionPrefix {
+            base: String::new(),
+            full: prefix.to_string(),
+        });
+    }
+
+    if words.iter().any(|word| word.starts_with('-')) {
+        return None;
+    }
+
+    let base = words.join(" ");
+    let full = if prefix.is_empty() {
+        format!("{base} ")
+    } else {
+        format!("{base} {prefix}")
+    };
+
+    if has_command_matching(state, &full, case_sensitive) {
+        Some(CommandCompletionPrefix { base, full })
+    } else {
+        None
+    }
+}
+
+fn command_decl_before_word(
+    state: &NuCompletionState,
+    line: &str,
+    word_start: usize,
+) -> Option<NuDeclId> {
+    let command_start = command_segment_start(line, word_start);
+    let words = simple_words(line[command_start..word_start].trim());
+    for end in (1..=words.len()).rev() {
+        let candidate = words[..end].join(" ");
+        if let Some(decl_id) = state.engine_state.find_decl(candidate.as_bytes(), &[]) {
+            return Some(decl_id);
+        }
+    }
+    None
+}
+
+fn has_command_matching(state: &NuCompletionState, prefix: &str, case_sensitive: bool) -> bool {
+    let working_set = StateWorkingSet::new(&state.engine_state);
+    !working_set
+        .find_commands_by_predicate(
+            |name| matches_prefix(&String::from_utf8_lossy(name), prefix, case_sensitive),
+            true,
+        )
+        .is_empty()
+}
+
+fn executable_search_paths(state: &NuCompletionState) -> Vec<PathBuf> {
+    let path_value = state
+        .stack
+        .get_env_var(&state.engine_state, "PATH")
+        .or_else(|| state.engine_state.get_env_var("PATH"));
+
+    match path_value {
+        Some(Value::String { val, .. }) => std::env::split_paths(val).collect(),
+        Some(Value::List { vals, .. }) => vals
+            .iter()
+            .filter_map(|value| match value {
+                Value::String { val, .. } => Some(PathBuf::from(val)),
+                _ => None,
+            })
+            .collect(),
+        _ => std::env::var_os("PATH")
+            .map(|path| std::env::split_paths(&path).collect())
+            .unwrap_or_default(),
+    }
+}
+
+fn current_word_start(line: &str, pos: usize) -> usize {
+    line[..pos]
+        .char_indices()
+        .rev()
+        .find_map(|(idx, ch)| is_word_boundary(ch).then_some(idx + ch.len_utf8()))
+        .unwrap_or(0)
+}
+
+fn command_segment_start(line: &str, pos: usize) -> usize {
+    line[..pos]
+        .char_indices()
+        .rev()
+        .find_map(|(idx, ch)| matches!(ch, '|' | ';' | '\n').then_some(idx + ch.len_utf8()))
+        .unwrap_or(0)
+}
+
+fn line_command_head(line: &str, pos: usize) -> String {
+    let command_start = command_segment_start(line, pos);
+    simple_words(line[command_start..pos].trim())
+        .first()
+        .copied()
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn simple_words(text: &str) -> Vec<&str> {
+    text.split_whitespace().collect()
+}
+
+fn is_run_external_command_arg(line: &str, word_start: usize) -> bool {
+    let command_start = command_segment_start(line, word_start);
+    simple_words(line[command_start..word_start].trim()) == ["run-external"]
+}
+
+fn is_word_boundary(ch: char) -> bool {
+    ch.is_whitespace() || matches!(ch, '|' | ';' | ',' | '(' | ')' | '[' | ']' | '{' | '}')
+}
+
+fn split_path_prefix(prefix: &str) -> (&str, &str) {
+    prefix
+        .rfind('/')
+        .map_or(("", prefix), |idx| prefix.split_at(idx + 1))
+}
+
+fn expand_tilde(path: &str) -> PathBuf {
+    if path == "~" {
+        home_dir().unwrap_or_else(|| PathBuf::from(path))
+    } else if let Some(rest) = path.strip_prefix("~/") {
+        home_dir()
+            .map(|home| home.join(rest))
+            .unwrap_or_else(|| PathBuf::from(path))
+    } else {
+        PathBuf::from(path)
+    }
+}
+
+fn home_dir() -> Option<PathBuf> {
+    std::env::var_os("HOME").map(PathBuf::from)
+}
+
+fn matches_prefix(candidate: &str, prefix: &str, case_sensitive: bool) -> bool {
+    if case_sensitive {
+        candidate.starts_with(prefix)
+    } else {
+        candidate
+            .to_ascii_lowercase()
+            .starts_with(&prefix.to_ascii_lowercase())
+    }
+}
+
+fn non_empty_description(description: &str) -> Option<String> {
+    (!description.is_empty()).then(|| description.to_string())
+}
+
+fn suggestion(
+    value: String,
+    description: Option<String>,
+    span: ReedlineSpan,
+    append_whitespace: bool,
+) -> Suggestion {
+    Suggestion {
+        value,
+        description,
+        span,
+        append_whitespace,
+        ..Default::default()
+    }
+}
+
+fn clamp_to_char_boundary(line: &str, mut pos: usize) -> usize {
+    while pos > 0 && !line.is_char_boundary(pos) {
+        pos -= 1;
+    }
+    pos
+}
+
+#[cfg(test)]
+mod completion_tests {
+    use super::*;
+
+    fn test_state() -> NuCompletionState {
+        let runtime = NuRuntime::new().expect("runtime should initialize");
+        NuCompletionState::new(&runtime.engine_state, &runtime.stack)
+    }
+
+    fn completion_values(state: &NuCompletionState, line: &str) -> Vec<String> {
+        NuEngineCompleter::complete_from_state(state, line, line.len())
+            .into_iter()
+            .map(|suggestion| suggestion.value)
+            .collect()
+    }
+
+    #[test]
+    fn completes_engine_commands() {
+        let state = test_state();
+        assert!(completion_values(&state, "op").contains(&"open".to_string()));
+    }
+
+    #[test]
+    fn completes_engine_subcommands() {
+        let state = test_state();
+        assert!(completion_values(&state, "path j").contains(&"join".to_string()));
+    }
+
+    #[test]
+    fn completes_flags_from_command_signature() {
+        let state = test_state();
+        assert!(completion_values(&state, "ls --").contains(&"--all".to_string()));
+    }
+
+    #[test]
+    fn completes_env_vars() {
+        let state = test_state();
+        assert!(completion_values(&state, "$env.PA").contains(&"$env.PATH".to_string()));
+    }
+
+    #[test]
+    fn completes_paths_after_known_command() {
+        let state = test_state();
+        assert!(completion_values(&state, "open Car").contains(&"Cargo.toml".to_string()));
+    }
+
+    #[test]
+    fn completes_executables_for_run_external() {
+        let state = test_state();
+        assert!(completion_values(&state, "run-external ec").contains(&"echo".to_string()));
+    }
 }
 
 fn run_stdin_repl(runtime: &mut NuRuntime, do_print: bool, do_eval: bool) -> Result<(), String> {
@@ -275,6 +888,7 @@ struct NuRuntime {
     decl_map: Vec<Option<NuDeclId>>,
     block_map: Vec<Option<nu_protocol::BlockId>>,
     engine_decl_to_local: HashMap<usize, DeclId>,
+    completion_state: Arc<Mutex<NuCompletionState>>,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -297,6 +911,7 @@ impl NuRuntime {
 
         let cwd = std::env::current_dir().map_err(|err| err.to_string())?;
         stack.set_cwd(cwd).map_err(format_shell_error)?;
+        let completion_state = Arc::new(Mutex::new(NuCompletionState::new(&engine_state, &stack)));
 
         Ok(Self {
             engine_state,
@@ -305,6 +920,7 @@ impl NuRuntime {
             decl_map: Vec::new(),
             block_map: Vec::new(),
             engine_decl_to_local: HashMap::new(),
+            completion_state,
         })
     }
 
@@ -427,8 +1043,11 @@ impl NuRuntime {
         .map_err(format_shell_error)?;
 
         output
+            .body
             .print_table(&self.engine_state, &mut self.stack, false, false)
-            .map_err(format_shell_error)
+            .map_err(format_shell_error)?;
+        self.refresh_completion_state();
+        Ok(())
     }
 
     fn prepare(&mut self, compiler: &Compiler) -> Result<nu_protocol::BlockId, String> {
@@ -500,6 +1119,7 @@ impl NuRuntime {
         self.engine_state
             .merge_delta(working_set.render())
             .map_err(format_shell_error)?;
+        self.refresh_completion_state();
 
         self.block_map[root_block.0].ok_or_else(|| "missing root block".to_string())
     }
@@ -537,7 +1157,7 @@ impl NuRuntime {
                 let mut signature =
                     self.signature_for_params(compiler, Some(name), Some(params), info)?;
                 signature.category = Category::Custom("new-nu-parser".to_string());
-                Ok(signature.into_block_command(block_id))
+                Ok(signature.into_block_command(block_id, Vec::new(), Vec::new()))
             }
             AstNode::Alias { old_name, .. } => {
                 if let Some(mapped) = compiler
@@ -612,6 +1232,16 @@ impl NuRuntime {
     fn run_external_decl(&self) -> Option<NuDeclId> {
         self.engine_state.find_decl(b"run-external", &[])
     }
+
+    fn completion_state(&self) -> Arc<Mutex<NuCompletionState>> {
+        Arc::clone(&self.completion_state)
+    }
+
+    fn refresh_completion_state(&self) {
+        if let Ok(mut state) = self.completion_state.lock() {
+            *state = NuCompletionState::new(&self.engine_state, &self.stack);
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -653,13 +1283,11 @@ impl NuCommand for UnsupportedDecl {
         call: &NuCall,
         _input: PipelineData,
     ) -> Result<PipelineData, ShellError> {
-        Err(ShellError::GenericError {
-            error: self.description.clone(),
-            msg: format!("`{}` cannot be evaluated yet", self.name),
-            span: Some(call.head),
-            help: None,
-            inner: vec![],
-        })
+        Err(ShellError::Generic(GenericError::new(
+            self.description.clone(),
+            format!("`{}` cannot be evaluated yet", self.name),
+            call.head,
+        )))
     }
 }
 
@@ -737,6 +1365,7 @@ fn add_params_to_signature(
                 arg: ty.map(|_| SyntaxShape::Any),
                 required: false,
                 desc: String::new(),
+                completion: None,
                 var_id: Some(var_id),
                 default_value: None,
             });
@@ -761,6 +1390,7 @@ fn positional_arg(name: &str, var_id: NuVarId) -> PositionalArg {
         name: trim_var_name(name).to_string(),
         desc: String::new(),
         shape: SyntaxShape::Any,
+        completion: None,
         var_id: Some(var_id),
         default_value: None,
     }

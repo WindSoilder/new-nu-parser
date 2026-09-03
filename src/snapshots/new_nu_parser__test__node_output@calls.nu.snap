@@ -100,7 +100,7 @@ file_count: 0
 6: ListPush { src_dst: RegId(0), item: RegId(3) }
 7: LoadLiteral { dst: RegId(4), lit: Int(1) }
 8: LoadLiteral { dst: RegId(5), lit: Int(2) }
-9: BinaryOp { lhs_dst: RegId(4), op: Math(Plus), rhs: RegId(5) }
+9: BinaryOp { lhs_dst: RegId(4), op: Math(Add), rhs: RegId(5) }
 10: ListPush { src_dst: RegId(0), item: RegId(4) }
 11: Drain { src: RegId(0) }
 12: LoadLiteral { dst: RegId(6), lit: Nothing }
@@ -108,7 +108,7 @@ file_count: 0
 14: LoadLiteral { dst: RegId(7), lit: String(DataSlice { start: 10, len: 3 }) }
 15: LoadLiteral { dst: RegId(8), lit: String(DataSlice { start: 13, len: 2 }) }
 16: LoadLiteral { dst: RegId(9), lit: String(DataSlice { start: 15, len: 1 }) }
-17: BinaryOp { lhs_dst: RegId(8), op: Math(Plus), rhs: RegId(9) }
+17: BinaryOp { lhs_dst: RegId(8), op: Math(Add), rhs: RegId(9) }
 18: LoadLiteral { dst: RegId(10), lit: Int(3) }
 19: PushPositional { src: RegId(7) }
 20: PushPositional { src: RegId(8) }
@@ -120,4 +120,3 @@ file_count: 0
 26: LoadLiteral { dst: RegId(13), lit: String(DataSlice { start: 16, len: 12 }) }
 27: ListPush { src_dst: RegId(12), item: RegId(13) }
 28: Return { src: RegId(12) }
-

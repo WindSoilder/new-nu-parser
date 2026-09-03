@@ -8,10 +8,10 @@ edition = "2021"
 [dependencies]
 tracy-client = { version = "0.17.3", default-features = false } # for tracy v0.11.1
 logos = "0.15"
-nu-cmd-lang = { version = "0.101", default-features = false, features = ["os"] }
-nu-command = { version = "0.101", default-features = false, features = ["os"] }
-nu-engine = { version = "0.101", default-features = false, features = ["os"] }
-nu-protocol = { version = "0.101", default-features = false, features = ["os"] }
+nu-cmd-lang = { path = "../nushell/crates/nu-cmd-lang", default-features = false, features = ["os"] }
+nu-command = { path = "../nushell/crates/nu-command", default-features = false, features = ["os"] }
+nu-engine = { path = "../nushell/crates/nu-engine", default-features = false, features = ["os"] }
+nu-protocol = { path = "../nushell/crates/nu-protocol", default-features = false, features = ["os"] }
 reedline = { version = "0.51.0", default-features = false }
 
 [profile.profiling]

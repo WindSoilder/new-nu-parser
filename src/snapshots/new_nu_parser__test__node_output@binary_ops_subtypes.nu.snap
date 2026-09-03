@@ -166,7 +166,7 @@ file_count: 0
 7: Drain { src: RegId(2) }
 8: LoadLiteral { dst: RegId(4), lit: Int(1) }
 9: LoadLiteral { dst: RegId(5), lit: Float(1.0) }
-10: BinaryOp { lhs_dst: RegId(4), op: Math(Plus), rhs: RegId(5) }
+10: BinaryOp { lhs_dst: RegId(4), op: Math(Add), rhs: RegId(5) }
 11: Drain { src: RegId(4) }
 12: LoadLiteral { dst: RegId(6), lit: List { capacity: 1 } }
 13: LoadLiteral { dst: RegId(7), lit: Int(1) }
@@ -174,7 +174,7 @@ file_count: 0
 15: LoadLiteral { dst: RegId(8), lit: List { capacity: 1 } }
 16: LoadLiteral { dst: RegId(9), lit: Float(1.0) }
 17: ListPush { src_dst: RegId(8), item: RegId(9) }
-18: BinaryOp { lhs_dst: RegId(6), op: Math(Concat), rhs: RegId(8) }
+18: BinaryOp { lhs_dst: RegId(6), op: Math(Concatenate), rhs: RegId(8) }
 19: Drain { src: RegId(6) }
 20: LoadLiteral { dst: RegId(10), lit: List { capacity: 2 } }
 21: LoadLiteral { dst: RegId(11), lit: Float(1.0) }
@@ -184,7 +184,7 @@ file_count: 0
 25: LoadLiteral { dst: RegId(13), lit: List { capacity: 1 } }
 26: LoadLiteral { dst: RegId(14), lit: String(DataSlice { start: 1, len: 1 }) }
 27: ListPush { src_dst: RegId(13), item: RegId(14) }
-28: BinaryOp { lhs_dst: RegId(10), op: Math(Concat), rhs: RegId(13) }
+28: BinaryOp { lhs_dst: RegId(10), op: Math(Concatenate), rhs: RegId(13) }
 29: Drain { src: RegId(10) }
 30: LoadLiteral { dst: RegId(15), lit: List { capacity: 2 } }
 31: LoadLiteral { dst: RegId(16), lit: List { capacity: 1 } }
@@ -200,7 +200,7 @@ file_count: 0
 41: LoadLiteral { dst: RegId(22), lit: Int(3) }
 42: ListPush { src_dst: RegId(21), item: RegId(22) }
 43: ListPush { src_dst: RegId(20), item: RegId(21) }
-44: BinaryOp { lhs_dst: RegId(15), op: Math(Concat), rhs: RegId(20) }
+44: BinaryOp { lhs_dst: RegId(15), op: Math(Concatenate), rhs: RegId(20) }
 45: Drain { src: RegId(15) }
 46: LoadLiteral { dst: RegId(23), lit: List { capacity: 2 } }
 47: LoadLiteral { dst: RegId(24), lit: List { capacity: 1 } }
@@ -216,7 +216,7 @@ file_count: 0
 57: LoadLiteral { dst: RegId(30), lit: Float(3.0) }
 58: ListPush { src_dst: RegId(29), item: RegId(30) }
 59: ListPush { src_dst: RegId(28), item: RegId(29) }
-60: BinaryOp { lhs_dst: RegId(23), op: Math(Concat), rhs: RegId(28) }
+60: BinaryOp { lhs_dst: RegId(23), op: Math(Concatenate), rhs: RegId(28) }
 61: Drain { src: RegId(23) }
 62: LoadLiteral { dst: RegId(31), lit: Int(1) }
 63: LoadLiteral { dst: RegId(32), lit: List { capacity: 2 } }
@@ -251,6 +251,5 @@ file_count: 0
 92: LoadLiteral { dst: RegId(50), lit: String(DataSlice { start: 7, len: 3 }) }
 93: RecordInsert { src_dst: RegId(44), key: RegId(49), val: RegId(50) }
 94: ListPush { src_dst: RegId(43), item: RegId(44) }
-95: BinaryOp { lhs_dst: RegId(37), op: Math(Concat), rhs: RegId(43) }
+95: BinaryOp { lhs_dst: RegId(37), op: Math(Concatenate), rhs: RegId(43) }
 96: Return { src: RegId(37) }
-

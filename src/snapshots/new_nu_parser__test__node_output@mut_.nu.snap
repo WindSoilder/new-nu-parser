@@ -71,7 +71,7 @@ file_count: 0
 3: Drain { src: RegId(1) }
 4: LoadLiteral { dst: RegId(2), lit: Int(3) }
 5: LoadLiteral { dst: RegId(3), lit: Int(456) }
-6: BinaryOp { lhs_dst: RegId(2), op: Math(Plus), rhs: RegId(3) }
+6: BinaryOp { lhs_dst: RegId(2), op: Math(Add), rhs: RegId(3) }
 7: StoreVariable { var_id: VarId(0), src: RegId(2) }
 8: LoadLiteral { dst: RegId(4), lit: Nothing }
 9: Drain { src: RegId(4) }
@@ -83,8 +83,7 @@ file_count: 0
 15: Drain { src: RegId(7) }
 16: LoadLiteral { dst: RegId(8), lit: Int(3) }
 17: LoadLiteral { dst: RegId(9), lit: Int(1) }
-18: BinaryOp { lhs_dst: RegId(8), op: Math(Plus), rhs: RegId(9) }
+18: BinaryOp { lhs_dst: RegId(8), op: Math(Add), rhs: RegId(9) }
 19: StoreVariable { var_id: VarId(1), src: RegId(8) }
 20: LoadLiteral { dst: RegId(10), lit: Nothing }
 21: Return { src: RegId(10) }
-

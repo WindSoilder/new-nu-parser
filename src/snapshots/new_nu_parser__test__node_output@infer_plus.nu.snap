@@ -86,12 +86,11 @@ file_count: 0
 6: StoreVariable { var_id: VarId(1), src: RegId(2) }
 7: LoadLiteral { dst: RegId(3), lit: Nothing }
 8: Drain { src: RegId(3) }
-9: LoadVariable { dst: RegId(4), var_id: VarId(1) }
+9: LoadVariable { dst: RegId(4), var_id: VarId(1), preserve_origin: false }
 10: LoadLiteral { dst: RegId(5), lit: String(DataSlice { start: 0, len: 3 }) }
-11: BinaryOp { lhs_dst: RegId(4), op: Math(Plus), rhs: RegId(5) }
+11: BinaryOp { lhs_dst: RegId(4), op: Math(Add), rhs: RegId(5) }
 12: Drain { src: RegId(4) }
-13: LoadVariable { dst: RegId(6), var_id: VarId(1) }
+13: LoadVariable { dst: RegId(6), var_id: VarId(1), preserve_origin: false }
 14: LoadLiteral { dst: RegId(7), lit: Int(123) }
-15: BinaryOp { lhs_dst: RegId(6), op: Math(Plus), rhs: RegId(7) }
+15: BinaryOp { lhs_dst: RegId(6), op: Math(Add), rhs: RegId(7) }
 16: Return { src: RegId(6) }
-

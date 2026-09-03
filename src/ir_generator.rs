@@ -4,6 +4,7 @@ use crate::parser::{AstNode, NodeId};
 use nu_protocol::ast::{
     Bits, Boolean, CellPath, Comparison, Math, Operator, PathMember, RangeInclusion,
 };
+use nu_protocol::casing::Casing;
 use nu_protocol::ir::{DataSlice, Instruction, IrBlock, Literal, RedirectMode};
 use nu_protocol::{
     BlockId as NuBlockId, DeclId as NuDeclId, RegId, Span, VarId as NuVarId, ENV_VARIABLE_ID,
@@ -65,6 +66,7 @@ impl<'a> IrGenerator<'a> {
                 comments: Default::default(),
                 register_count: 0,
                 file_count: 0,
+                scope_regions: Default::default(),
             },
             data: Vec::new(),
             loop_stack: Vec::new(),
@@ -658,7 +660,7 @@ impl<'a> IrGenerator<'a> {
                     node_id,
                     Instruction::BinaryOp {
                         lhs_dst: zero,
-                        op: Operator::Math(Math::Minus),
+                        op: Operator::Math(Math::Subtract),
                         rhs,
                     },
                 );
@@ -1454,7 +1456,14 @@ impl<'a> IrGenerator<'a> {
     fn load_variable(&mut self, node_id: NodeId) -> RegId {
         let dst = self.next_register();
         let var_id = self.variable_id(node_id);
-        self.add_instruction(node_id, Instruction::LoadVariable { dst, var_id });
+        self.add_instruction(
+            node_id,
+            Instruction::LoadVariable {
+                dst,
+                var_id,
+                preserve_origin: false,
+            },
+        );
         dst
     }
 
@@ -1690,11 +1699,11 @@ impl<'a> IrGenerator<'a> {
             AstNode::Pow => (Operator::Math(Math::Pow), false),
             AstNode::Multiply => (Operator::Math(Math::Multiply), false),
             AstNode::Divide => (Operator::Math(Math::Divide), false),
-            AstNode::FloorDiv => (Operator::Math(Math::FloorDivision), false),
+            AstNode::FloorDiv => (Operator::Math(Math::FloorDivide), false),
             AstNode::Modulo => (Operator::Math(Math::Modulo), false),
-            AstNode::Plus => (Operator::Math(Math::Plus), false),
-            AstNode::Minus => (Operator::Math(Math::Minus), false),
-            AstNode::Append => (Operator::Math(Math::Concat), false),
+            AstNode::Plus => (Operator::Math(Math::Add), false),
+            AstNode::Minus => (Operator::Math(Math::Subtract), false),
+            AstNode::Append => (Operator::Math(Math::Concatenate), false),
             AstNode::Equal => (Operator::Comparison(Comparison::Equal), false),
             AstNode::NotEqual => (Operator::Comparison(Comparison::NotEqual), false),
             AstNode::LessThan => (Operator::Comparison(Comparison::LessThan), false),
@@ -1734,11 +1743,11 @@ impl<'a> IrGenerator<'a> {
 
     fn assignment_operator_to_binary(&mut self, node_id: NodeId) -> Option<Operator> {
         match self.compiler.ast_nodes[node_id.0] {
-            AstNode::AddAssignment => Some(Operator::Math(Math::Plus)),
-            AstNode::SubtractAssignment => Some(Operator::Math(Math::Minus)),
+            AstNode::AddAssignment => Some(Operator::Math(Math::Add)),
+            AstNode::SubtractAssignment => Some(Operator::Math(Math::Subtract)),
             AstNode::MultiplyAssignment => Some(Operator::Math(Math::Multiply)),
             AstNode::DivideAssignment => Some(Operator::Math(Math::Divide)),
-            AstNode::AppendAssignment => Some(Operator::Math(Math::Concat)),
+            AstNode::AppendAssignment => Some(Operator::Math(Math::Concatenate)),
             AstNode::Assignment => None,
             node => {
                 self.error(
@@ -1793,11 +1802,25 @@ impl<'a> IrGenerator<'a> {
                 .replace('_', "")
                 .parse::<usize>()
                 .map_or_else(
-                    |_| PathMember::string(self.node_source_string(field), optional, span),
+                    |_| {
+                        PathMember::string(
+                            self.node_source_string(field),
+                            optional,
+                            Casing::Sensitive,
+                            span,
+                        )
+                    },
                     |value| PathMember::int(value, optional, span),
                 ),
-            AstNode::String => PathMember::string(self.string_value(field), optional, span),
-            _ => PathMember::string(self.node_source_string(field), optional, span),
+            AstNode::String => {
+                PathMember::string(self.string_value(field), optional, Casing::Sensitive, span)
+            }
+            _ => PathMember::string(
+                self.node_source_string(field),
+                optional,
+                Casing::Sensitive,
+                span,
+            ),
         }
     }
 
@@ -1874,7 +1897,7 @@ impl<'a> IrGenerator<'a> {
             }
         }
 
-        PathMember::string(text, optional, span)
+        PathMember::string(text, optional, Casing::Sensitive, span)
     }
 
     fn pattern_alternatives(&self, pattern: NodeId) -> Vec<NodeId> {

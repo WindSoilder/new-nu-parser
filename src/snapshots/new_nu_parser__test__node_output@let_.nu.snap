@@ -37,7 +37,7 @@ file_count: 0
 1: StoreVariable { var_id: VarId(0), src: RegId(0) }
 2: LoadLiteral { dst: RegId(1), lit: Nothing }
 3: Drain { src: RegId(1) }
-4: LoadVariable { dst: RegId(2), var_id: VarId(0) }
+4: LoadVariable { dst: RegId(2), var_id: VarId(0), preserve_origin: false }
 5: Drain { src: RegId(2) }
 6: LoadLiteral { dst: RegId(3), lit: Int(123) }
 7: Drain { src: RegId(3) }
@@ -45,6 +45,5 @@ file_count: 0
 9: StoreVariable { var_id: VarId(1), src: RegId(4) }
 10: LoadLiteral { dst: RegId(5), lit: Nothing }
 11: Drain { src: RegId(5) }
-12: LoadVariable { dst: RegId(6), var_id: VarId(1) }
+12: LoadVariable { dst: RegId(6), var_id: VarId(1), preserve_origin: false }
 13: Return { src: RegId(6) }
-

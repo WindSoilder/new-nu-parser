@@ -36,8 +36,7 @@ file_count: 0
 1: LoadLiteral { dst: RegId(1), lit: Int(2) }
 2: LoadLiteral { dst: RegId(2), lit: Int(3) }
 3: BinaryOp { lhs_dst: RegId(1), op: Math(Multiply), rhs: RegId(2) }
-4: BinaryOp { lhs_dst: RegId(0), op: Math(Plus), rhs: RegId(1) }
+4: BinaryOp { lhs_dst: RegId(0), op: Math(Add), rhs: RegId(1) }
 5: LoadLiteral { dst: RegId(3), lit: Int(4) }
-6: BinaryOp { lhs_dst: RegId(0), op: Math(Plus), rhs: RegId(3) }
+6: BinaryOp { lhs_dst: RegId(0), op: Math(Add), rhs: RegId(3) }
 7: Return { src: RegId(0) }
-

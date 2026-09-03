@@ -49,13 +49,12 @@ file_count: 0
 6: BinaryOp { lhs_dst: RegId(2), op: Comparison(LessThan), rhs: RegId(3) }
 7: Not { src_dst: RegId(2) }
 8: BranchIf { cond: RegId(2), index: 16 }
-9: LoadVariable { dst: RegId(4), var_id: VarId(0) }
+9: LoadVariable { dst: RegId(4), var_id: VarId(0), preserve_origin: false }
 10: LoadLiteral { dst: RegId(5), lit: Int(1) }
-11: BinaryOp { lhs_dst: RegId(4), op: Math(Plus), rhs: RegId(5) }
+11: BinaryOp { lhs_dst: RegId(4), op: Math(Add), rhs: RegId(5) }
 12: StoreVariable { var_id: VarId(0), src: RegId(4) }
 13: LoadLiteral { dst: RegId(6), lit: Nothing }
 14: Drain { src: RegId(6) }
 15: Jump { index: 4 }
 16: LoadLiteral { dst: RegId(7), lit: Nothing }
 17: Return { src: RegId(7) }
-

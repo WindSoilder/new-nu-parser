@@ -53,11 +53,11 @@ register_count: 8
 file_count: 0
 0: LoadLiteral { dst: RegId(0), lit: String(DataSlice { start: 0, len: 1 }) }
 1: LoadLiteral { dst: RegId(1), lit: Float(1.0) }
-2: BinaryOp { lhs_dst: RegId(0), op: Math(Plus), rhs: RegId(1) }
+2: BinaryOp { lhs_dst: RegId(0), op: Math(Add), rhs: RegId(1) }
 3: Drain { src: RegId(0) }
 4: LoadLiteral { dst: RegId(2), lit: String(DataSlice { start: 1, len: 1 }) }
 5: LoadLiteral { dst: RegId(3), lit: Float(1.0) }
-6: BinaryOp { lhs_dst: RegId(2), op: Math(Concat), rhs: RegId(3) }
+6: BinaryOp { lhs_dst: RegId(2), op: Math(Concatenate), rhs: RegId(3) }
 7: Drain { src: RegId(2) }
 8: LoadLiteral { dst: RegId(4), lit: Bool(true) }
 9: LoadLiteral { dst: RegId(5), lit: String(DataSlice { start: 2, len: 1 }) }
@@ -67,4 +67,3 @@ file_count: 0
 13: LoadLiteral { dst: RegId(7), lit: String(DataSlice { start: 3, len: 4 }) }
 14: BinaryOp { lhs_dst: RegId(6), op: Comparison(NotRegexMatch), rhs: RegId(7) }
 15: Return { src: RegId(6) }
-
