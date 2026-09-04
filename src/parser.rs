@@ -321,11 +321,13 @@ pub enum AstNode {
     },
 
     /// Long flag ('--' + one or more letters)
-    FlagLong,
+    FlagLong(NodeId),
     /// Short flag ('-' + single letter)
-    FlagShort,
+    FlagShort(NodeId),
     /// Group of short flags ('-' + more than 1 letters)
-    FlagShortGroup,
+    FlagShortGroup(NodeId),
+    /// Spread
+    Spread(NodeId),
 
     // Expressions
     Call(CallId),
@@ -728,24 +730,15 @@ impl Parser {
     pub fn call(&mut self) -> NodeId {
         let _span = span!();
         let mut parts = vec![self.call_name()];
-        let mut is_head = true;
         let span_start = self.position();
 
-        while self.has_tokens() {
-            if self.is_newline() {
-                break;
-            }
+        while self.has_tokens() && self.is_name() && !self.is_newline() {
+            parts.push(self.call_name());
+        }
 
-            if self.is_name() && is_head {
-                parts.push(self.name());
-                continue;
-            }
-
-            // TODO: Add flags
-
-            is_head = false;
-            let arg_id = self.simple_expression(BarewordContext::String);
-            parts.push(arg_id);
+        // Arguments.
+        while self.has_tokens() && !self.is_newline() {
+            parts.push(self.argument());
         }
 
         let span_end = self.position();
@@ -756,6 +749,56 @@ impl Parser {
             span_start,
             span_end,
         )
+    }
+
+    fn argument(&mut self) -> NodeId {
+        println!("debug token: {:?}", self.tokens.peek_token());
+        match self.tokens.peek_token() {
+            Token::DotDotDot => self.spread_expression(),
+            Token::DashDash => self.flag_long(),
+            Token::Dash => self.flag_short(),
+            _ => self.simple_expression(BarewordContext::String),
+        }
+    }
+
+    fn spread_expression(&mut self) -> NodeId {
+        let span_start = self.position();
+        self.tokens.advance();
+        let expression = self.simple_expression(BarewordContext::String);
+        let span_end = self.position();
+        self.create_node(AstNode::Spread(expression), span_start, span_end)
+    }
+
+    fn flag_long(&mut self) -> NodeId {
+        let span_start = self.position();
+        self.tokens.advance();
+        let flag_name = self.flag_name();
+        let span_end = self.position();
+        let result = self.create_node(AstNode::FlagLong(flag_name), span_start, span_end);
+
+        // may skip additional `=`
+        if self.is_equals() {
+            self.tokens.advance();
+        }
+        result
+    }
+
+    fn flag_short(&mut self) -> NodeId {
+        let span_start = self.position();
+        self.tokens.advance();
+        let flag_name = self.name();
+        let span_end = self.position();
+        let result = if self.compiler.get_span_contents(flag_name).len() > 1 {
+            self.create_node(AstNode::FlagShortGroup(flag_name), span_start, span_end)
+        } else {
+            self.create_node(AstNode::FlagShort(flag_name), span_start, span_end)
+        };
+
+        // may skip additional `=`
+        if self.is_equals() {
+            self.tokens.advance();
+        }
+        result
     }
 
     pub fn list_or_table(&mut self) -> NodeId {
@@ -956,6 +999,14 @@ impl Parser {
     }
 
     pub fn call_name(&mut self) -> NodeId {
+        self.name_with_dash()
+    }
+
+    fn flag_name(&mut self) -> NodeId {
+        self.name_with_dash()
+    }
+
+    fn name_with_dash(&mut self) -> NodeId {
         let (mut token, mut span) = self.tokens.peek();
 
         loop {
