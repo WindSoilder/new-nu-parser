@@ -1920,8 +1920,7 @@ impl Parser {
             } else if self.is_semicolon() || self.is_newline() || self.is_comment() {
                 self.tokens.advance();
                 continue;
-            } else
-            {
+            } else {
                 self.statement(&mut code_body)
             }
         }
