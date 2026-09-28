@@ -255,7 +255,14 @@ impl<'a> Typechecker<'a> {
                 // Params are not supposed to be evaluated
                 self.set_node_type_id(node_id, FORBIDDEN_TYPE);
             }
-            AstNode::Param { name, ty } => {
+            // TODO: handle default.
+            AstNode::PosParam {
+                name,
+                ty,
+                custom_completion: _,
+                default: _,
+                is_optional: _,
+            } => {
                 if let Some(ty) = ty {
                     let ty_id = self.typecheck_type(ty);
 
@@ -452,6 +459,10 @@ impl<'a> Typechecker<'a> {
                     .last()
                     .map_or(NONE_TYPE, |node_id| self.type_id_of(*node_id))
             }
+            AstNode::PipeElement {
+                expr,
+                redirection: _,
+            } => self.typecheck_expr(expr, expected),
             AstNode::Closure { params, block } => {
                 // TODO: input/output types
                 if let Some(params_node_id) = params {
@@ -977,7 +988,15 @@ impl<'a> Typechecker<'a> {
                     .nodes
                     .iter()
                     .map(|field| {
-                        let AstNode::Param { name, ty } = self.compiler.get_node(*field) else {
+                        // TODO: handle default.
+                        let AstNode::PosParam {
+                            name,
+                            ty,
+                            custom_completion: _,
+                            default: _,
+                            is_optional: _,
+                        } = self.compiler.get_node(*field)
+                        else {
                             panic!("internal error: record field isn't Param");
                         };
                         let ty_id = match ty {
