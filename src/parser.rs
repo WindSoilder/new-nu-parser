@@ -791,7 +791,7 @@ impl Parser {
                 b"null" => self.advance_node(AstNode::Null, span),
                 _ => match bareword_context {
                     BarewordContext::String => {
-                        let node_id = self.name();
+                        let node_id = self.itendifier();
                         self.compiler.ast_nodes[node_id.0] = AstNode::String;
                         node_id
                     }
@@ -830,7 +830,7 @@ impl Parser {
                     return expr;
                 }
 
-                let name = self.name();
+                let name = self.itendifier();
 
                 let field_or_call = if self.is_lparen() {
                     self.variable()
@@ -950,14 +950,14 @@ impl Parser {
 
     fn argument(&mut self) -> NodeId {
         match self.tokens.peek_token() {
-            Token::DotDotDot => self.spread_expression(),
+            Token::DotDotDot => self.spread(),
             Token::DashDash => self.flag_long(),
-            Token::Dash => self.flag_short(),
+            Token::Dash => self.short_flag(),
             _ => self.simple_expression(BarewordContext::String),
         }
     }
 
-    fn spread_expression(&mut self) -> NodeId {
+    fn spread(&mut self) -> NodeId {
         let span_start = self.position();
         self.tokens.advance();
         let expression = self.simple_expression(BarewordContext::String);
@@ -982,13 +982,13 @@ impl Parser {
         result
     }
 
-    fn flag_short(&mut self) -> NodeId {
+    fn short_flag(&mut self) -> NodeId {
         let span_start = self.position();
         if !self.is_dash() {
             return self.error("Expect dash(-)");
         }
         self.tokens.advance();
-        let flag_name = self.name();
+        let flag_name = self.itendifier();
         let span_end = self.compiler.get_span(flag_name).end;
         let result = if self.compiler.get_span_contents(flag_name).len() > 1 {
             self.create_node(AstNode::FlagShortGroup(flag_name), span_start, span_end)
@@ -1200,7 +1200,7 @@ impl Parser {
         }
     }
 
-    pub fn name(&mut self) -> NodeId {
+    pub fn itendifier(&mut self) -> NodeId {
         match self.tokens.peek() {
             (Token::Bareword, span) => self.advance_node(AstNode::Name, span),
             _ => self.error("expected: name"),
@@ -1417,13 +1417,13 @@ impl Parser {
                     if is_rest_param && matches!(params_context, ParamsContext::Squares) {
                         // reset parameter
                         self.tokens.advance();
-                        (self.name(), None)
+                        (self.itendifier(), None)
                     } else if is_flag_param && matches!(params_context, ParamsContext::Squares) {
                         // flag_parameter.
                         let result = self.flag_long();
                         if self.is_lparen() {
                             self.tokens.advance();
-                            let short = self.flag_short();
+                            let short = self.short_flag();
                             self.rparen();
                             (result, Some(short))
                         } else {
@@ -1431,7 +1431,7 @@ impl Parser {
                         }
                     } else {
                         // positional parameter
-                        let result = (self.name(), None);
+                        let result = (self.itendifier(), None);
                         if self.is_question_mark() {
                             self.tokens.advance();
                             is_pos_param_optional = true;
@@ -1546,7 +1546,7 @@ impl Parser {
                 continue;
             }
 
-            param_list.push(self.name());
+            param_list.push(self.itendifier());
         }
 
         let span_end = self.position() + 1;
@@ -1599,7 +1599,7 @@ impl Parser {
     pub fn typename(&mut self) -> NodeId {
         let _span = span!();
         if let (Token::Bareword, span) = self.tokens.peek() {
-            let name = self.name();
+            let name = self.itendifier();
             let name_text = self.compiler.get_span_contents(name);
 
             if name_text == b"record" {
@@ -1710,7 +1710,7 @@ impl Parser {
         self.call(false)
     }
 
-    pub fn def_statement(&mut self, attributes: Option<AttributeId>, span_start: usize) -> NodeId {
+    pub fn def_decl(&mut self, attributes: Option<AttributeId>, span_start: usize) -> NodeId {
         let _span = span!();
 
         self.keyword(b"def");
@@ -1783,7 +1783,7 @@ impl Parser {
         )
     }
 
-    pub fn extern_statement(&mut self) -> NodeId {
+    pub fn extern_decl(&mut self) -> NodeId {
         let _span = span!();
         let span_start = self.position();
 
@@ -1804,7 +1804,7 @@ impl Parser {
     }
 
     // TODO: Deduplicate code between let/mut/const assignments
-    pub fn let_statement(&mut self) -> NodeId {
+    pub fn let_decl(&mut self) -> NodeId {
         let _span = span!();
         let is_mutable = false;
         let span_start = self.position();
@@ -1841,7 +1841,7 @@ impl Parser {
     }
 
     // TODO: Deduplicate code between let/mut/const assignments
-    pub fn mut_statement(&mut self) -> NodeId {
+    pub fn mut_decl(&mut self) -> NodeId {
         let _span = span!();
         let is_mutable = true;
         let span_start = self.position();
@@ -1945,7 +1945,7 @@ impl Parser {
                     if self.is_keyword(b"def") {
                         self.compiler.attributes.push(Attributes::new(attributes));
                         let attributes_id = AttributeId(self.compiler.attributes.len() - 1);
-                        code_body.push(self.def_statement(Some(attributes_id), declaration_start));
+                        code_body.push(self.def_decl(Some(attributes_id), declaration_start));
                     } else {
                         let span = self.tokens.peek_span();
                         let node_id = self.create_node(AstNode::Garbage, span.start, span.end);
@@ -1963,11 +1963,11 @@ impl Parser {
                 }
             } else if self.is_keyword(b"def") {
                 let declaration_start = self.position();
-                code_body.push(self.def_statement(None, declaration_start));
+                code_body.push(self.def_decl(None, declaration_start));
             } else if self.is_keyword(b"let") {
-                code_body.push(self.let_statement());
+                code_body.push(self.let_decl());
             } else if self.is_keyword(b"mut") {
-                code_body.push(self.mut_statement());
+                code_body.push(self.mut_decl());
             } else if self.is_keyword(b"while") {
                 code_body.push(self.while_statement());
             } else if self.is_keyword(b"for") {
@@ -1981,9 +1981,9 @@ impl Parser {
             } else if self.is_keyword(b"break") {
                 code_body.push(self.break_statement());
             } else if self.is_keyword(b"alias") {
-                code_body.push(self.alias_statement());
+                code_body.push(self.alias_decl());
             } else if self.is_keyword(b"extern") {
-                code_body.push(self.extern_statement());
+                code_body.push(self.extern_decl());
             } else {
                 let exp_span_start = self.position();
                 let pipeline = self.pipeline_or_expression_or_assignment();
@@ -2093,14 +2093,14 @@ impl Parser {
         self.create_node(AstNode::Break, span_start, span_end)
     }
 
-    pub fn alias_statement(&mut self) -> NodeId {
+    pub fn alias_decl(&mut self) -> NodeId {
         let _span = span!();
         let span_start = self.position();
         self.keyword(b"alias");
         let new_name = if self.is_string() {
             self.string()
         } else {
-            self.name()
+            self.itendifier()
         };
         self.equals();
         let call = self.call(true);

@@ -57,13 +57,13 @@ const_decl      → "const" binding "=" expression ;
 binding        → variable_decl type_annotation? ;
 variable_decl   → "$"? IDENTIFIER ;
 
-def_decl        → attribute_prefix? "def" def_option* command_name type_params? signature
+def_decl        → attribute_prefix? "def" def_option* command_name type_params? signature_params
                  io_signature? block ;
 def_option      → "--env" | "--wrapped" ;
 attribute_prefix
                → attribute NEWLINE (attribute NEWLINE)* ;
 attribute       → "@" internal_call ;
-extern_decl     → "extern" command_name signature ;
+extern_decl     → "extern" command_name signature_params ;
 alias_decl       → "alias" command_name "=" pipeline ;
 
 module_decl     → "module" module_name block | "module" module_path ;
@@ -234,7 +234,8 @@ record_pattern_item
 ## Signatures, types, imports
 
 ```text
-signature      → "[" signature_parameter (separator? signature_parameter)*
+signature_params
+               → "[" signature_parameter (separator? signature_parameter)*
                  separator? "]" ;
 signature_parameter
                → rest_parameter | flag_parameter |  positional_parameter ;
@@ -245,11 +246,11 @@ flag_parameter  → flag_long ("(" short_flag ")")? type_annotation? default_val
 default_value   → "=" expression ;
 io_signature    → ":" "[" in_out_type (separator? in_out_type)* separator? "]"
                | ":" in_out_type ;
-in_out_type      → type "->" type ;
-type_annotation → ":" type ("@" command_name)? ;
-type           → "record" "<" record_type_field ("," record_type_field)* ","? ">" "?"?
-               | IDENTIFIER type_arguments? "?"? ;
-type_arguments  → "<" type ("," type)* ","? ">" ;
+in_out_type      → typename "->" typename ;
+type_annotation → ":" typename ("@" command_name)? ;
+typename       → "record" "<" record_type_field ("," record_type_field)* ","? ">" "?"?
+               | IDENTIFIER type_args? "?"? ;
+type_args      → "<" typename ("," typename)* ","? ">" ;
 record_type_field
                → record_key type_annotation? ;
 type_params     → "<" IDENTIFIER ("," IDENTIFIER)* ","? ">" ;
