@@ -21,7 +21,7 @@ Note that the rule name in this grammar does not map directly to [parser.rs](../
 ```text
 program        → shebang? terminator* statement_sequence? terminator* EOF ;
 statement_sequence
-               → statement (terminator+ statement)* ;
+               → "{"? statement (terminator+ statement)* "}"?;
 terminator     → NEWLINE | ";" ;
 
 statement      → declaration

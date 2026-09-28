@@ -791,7 +791,7 @@ impl Parser {
                 b"null" => self.advance_node(AstNode::Null, span),
                 _ => match bareword_context {
                     BarewordContext::String => {
-                        let node_id = self.itendifier();
+                        let node_id = self.identifier();
                         self.compiler.ast_nodes[node_id.0] = AstNode::String;
                         node_id
                     }
@@ -830,7 +830,7 @@ impl Parser {
                     return expr;
                 }
 
-                let name = self.itendifier();
+                let name = self.identifier();
 
                 let field_or_call = if self.is_lparen() {
                     self.variable()
@@ -988,7 +988,7 @@ impl Parser {
             return self.error("Expect dash(-)");
         }
         self.tokens.advance();
-        let flag_name = self.itendifier();
+        let flag_name = self.identifier();
         let span_end = self.compiler.get_span(flag_name).end;
         let result = if self.compiler.get_span_contents(flag_name).len() > 1 {
             self.create_node(AstNode::FlagShortGroup(flag_name), span_start, span_end)
@@ -1200,7 +1200,7 @@ impl Parser {
         }
     }
 
-    pub fn itendifier(&mut self) -> NodeId {
+    pub fn identifier(&mut self) -> NodeId {
         match self.tokens.peek() {
             (Token::Bareword, span) => self.advance_node(AstNode::Name, span),
             _ => self.error("expected: name"),
@@ -1417,7 +1417,7 @@ impl Parser {
                     if is_rest_param && matches!(params_context, ParamsContext::Squares) {
                         // reset parameter
                         self.tokens.advance();
-                        (self.itendifier(), None)
+                        (self.identifier(), None)
                     } else if is_flag_param && matches!(params_context, ParamsContext::Squares) {
                         // flag_parameter.
                         let result = self.flag_long();
@@ -1431,7 +1431,7 @@ impl Parser {
                         }
                     } else {
                         // positional parameter
-                        let result = (self.itendifier(), None);
+                        let result = (self.identifier(), None);
                         if self.is_question_mark() {
                             self.tokens.advance();
                             is_pos_param_optional = true;
@@ -1546,7 +1546,7 @@ impl Parser {
                 continue;
             }
 
-            param_list.push(self.itendifier());
+            param_list.push(self.identifier());
         }
 
         let span_end = self.position() + 1;
@@ -1599,7 +1599,7 @@ impl Parser {
     pub fn typename(&mut self) -> NodeId {
         let _span = span!();
         if let (Token::Bareword, span) = self.tokens.peek() {
-            let name = self.itendifier();
+            let name = self.identifier();
             let name_text = self.compiler.get_span_contents(name);
 
             if name_text == b"record" {
@@ -1920,89 +1920,96 @@ impl Parser {
             } else if self.is_semicolon() || self.is_newline() || self.is_comment() {
                 self.tokens.advance();
                 continue;
-            } else if self.is_at() {
-                let declaration_start = self.position();
-                let mut attributes = vec![];
-                let mut has_attribute_parse_error = false;
-
-                while self.is_at() {
-                    attributes.push(self.attribute());
-
-                    if !self.is_newline() && !self.is_eof() {
-                        code_body.push(
-                            self.error("custom-command attributes must be terminated by a newline"),
-                        );
-                        has_attribute_parse_error = true;
-                        break;
-                    }
-
-                    while self.is_newline() {
-                        self.tokens.advance();
-                    }
-                }
-
-                if !has_attribute_parse_error {
-                    if self.is_keyword(b"def") {
-                        self.compiler.attributes.push(Attributes::new(attributes));
-                        let attributes_id = AttributeId(self.compiler.attributes.len() - 1);
-                        code_body.push(self.def_decl(Some(attributes_id), declaration_start));
-                    } else {
-                        let span = self.tokens.peek_span();
-                        let node_id = self.create_node(AstNode::Garbage, span.start, span.end);
-                        self.compiler.errors.push(SourceError {
-                            message: "attribute prefix must be followed by a `def` declaration"
-                                .to_string(),
-                            node_id,
-                            severity: Severity::Error,
-                        });
-                        while self.has_tokens() && !self.is_newline() {
-                            self.tokens.advance();
-                        }
-                        code_body.push(node_id);
-                    }
-                }
-            } else if self.is_keyword(b"def") {
-                let declaration_start = self.position();
-                code_body.push(self.def_decl(None, declaration_start));
-            } else if self.is_keyword(b"let") {
-                code_body.push(self.let_decl());
-            } else if self.is_keyword(b"mut") {
-                code_body.push(self.mut_decl());
-            } else if self.is_keyword(b"while") {
-                code_body.push(self.while_statement());
-            } else if self.is_keyword(b"for") {
-                code_body.push(self.for_statement());
-            } else if self.is_keyword(b"loop") {
-                code_body.push(self.loop_statement());
-            } else if self.is_keyword(b"return") {
-                code_body.push(self.return_statement());
-            } else if self.is_keyword(b"continue") {
-                code_body.push(self.continue_statement());
-            } else if self.is_keyword(b"break") {
-                code_body.push(self.break_statement());
-            } else if self.is_keyword(b"alias") {
-                code_body.push(self.alias_decl());
-            } else if self.is_keyword(b"extern") {
-                code_body.push(self.extern_decl());
-            } else {
-                let exp_span_start = self.position();
-                let pipeline = self.pipeline_or_expression_or_assignment();
-                let exp_span_end = self.get_span_end(pipeline);
-
-                if self.is_semicolon() {
-                    // This is a statement, not an expression
-                    self.tokens.advance();
-                    code_body.push(self.create_node(
-                        AstNode::Statement(pipeline),
-                        exp_span_start,
-                        exp_span_end,
-                    ))
-                } else {
-                    code_body.push(pipeline);
-                }
+            } else
+            {
+                self.statement(&mut code_body)
             }
         }
         code_body
+    }
+
+    pub fn statement(&mut self, code_body: &mut Vec<NodeId>) {
+        if self.is_at() {
+            let declaration_start = self.position();
+            let mut attributes = vec![];
+            let mut has_attribute_parse_error = false;
+
+            while self.is_at() {
+                attributes.push(self.attribute());
+
+                if !self.is_newline() && !self.is_eof() {
+                    code_body.push(
+                        self.error("custom-command attributes must be terminated by a newline"),
+                    );
+                    has_attribute_parse_error = true;
+                    break;
+                }
+
+                while self.is_newline() {
+                    self.tokens.advance();
+                }
+            }
+
+            if !has_attribute_parse_error {
+                if self.is_keyword(b"def") {
+                    self.compiler.attributes.push(Attributes::new(attributes));
+                    let attributes_id = AttributeId(self.compiler.attributes.len() - 1);
+                    code_body.push(self.def_decl(Some(attributes_id), declaration_start));
+                } else {
+                    let span = self.tokens.peek_span();
+                    let node_id = self.create_node(AstNode::Garbage, span.start, span.end);
+                    self.compiler.errors.push(SourceError {
+                        message: "attribute prefix must be followed by a `def` declaration"
+                            .to_string(),
+                        node_id,
+                        severity: Severity::Error,
+                    });
+                    while self.has_tokens() && !self.is_newline() {
+                        self.tokens.advance();
+                    }
+                    code_body.push(node_id);
+                }
+            }
+        } else if self.is_keyword(b"def") {
+            let declaration_start = self.position();
+            code_body.push(self.def_decl(None, declaration_start));
+        } else if self.is_keyword(b"let") {
+            code_body.push(self.let_decl());
+        } else if self.is_keyword(b"mut") {
+            code_body.push(self.mut_decl());
+        } else if self.is_keyword(b"while") {
+            code_body.push(self.while_statement());
+        } else if self.is_keyword(b"for") {
+            code_body.push(self.for_statement());
+        } else if self.is_keyword(b"loop") {
+            code_body.push(self.loop_statement());
+        } else if self.is_keyword(b"return") {
+            code_body.push(self.return_statement());
+        } else if self.is_keyword(b"continue") {
+            code_body.push(self.continue_statement());
+        } else if self.is_keyword(b"break") {
+            code_body.push(self.break_statement());
+        } else if self.is_keyword(b"alias") {
+            code_body.push(self.alias_decl());
+        } else if self.is_keyword(b"extern") {
+            code_body.push(self.extern_decl());
+        } else {
+            let exp_span_start = self.position();
+            let pipeline = self.pipeline_or_expression_or_assignment();
+            let exp_span_end = self.get_span_end(pipeline);
+
+            if self.is_semicolon() {
+                // This is a statement, not an expression
+                self.tokens.advance();
+                code_body.push(self.create_node(
+                    AstNode::Statement(pipeline),
+                    exp_span_start,
+                    exp_span_end,
+                ))
+            } else {
+                code_body.push(pipeline);
+            }
+        }
     }
 
     pub fn while_statement(&mut self) -> NodeId {
@@ -2100,7 +2107,7 @@ impl Parser {
         let new_name = if self.is_string() {
             self.string()
         } else {
-            self.itendifier()
+            self.identifier()
         };
         self.equals();
         let call = self.call(true);
