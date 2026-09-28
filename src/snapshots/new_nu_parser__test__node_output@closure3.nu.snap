@@ -8,11 +8,11 @@ input_file: tests/closure3.nu
 1: Name (16 to 17) "a"
 2: Name (19 to 22) "int"
 3: Type { name: NodeId(2), args: None, optional: false } (19 to 22)
-4: Param { name: NodeId(1), ty: Some(NodeId(3)) } (16 to 22)
+4: PosParam { name: NodeId(1), ty: Some(NodeId(3)), custom_completion: None, default: None, is_optional: false } (16 to 22)
 5: Name (24 to 25) "b"
 6: Name (27 to 30) "int"
 7: Type { name: NodeId(6), args: None, optional: false } (27 to 30)
-8: Param { name: NodeId(5), ty: Some(NodeId(7)) } (24 to 30)
+8: PosParam { name: NodeId(5), ty: Some(NodeId(7)), custom_completion: None, default: None, is_optional: false } (24 to 30)
 9: Params(ParamsId(0)) (15 to 31) - sub_nodes: 4,8
 10: Variable (32 to 34) "$a"
 11: Plus (35 to 36)
@@ -23,13 +23,14 @@ input_file: tests/closure3.nu
 16: BinaryOp { lhs: NodeId(15), op: NodeId(13), rhs: NodeId(14) } (32 to 43)
 17: Block(BlockId(0)) (32 to 43) - sub_nodes: 16
 18: Closure { params: Some(NodeId(9)), block: NodeId(17) } (14 to 44)
-19: Let { variable_name: NodeId(0), ty: None, initializer: NodeId(18), is_mutable: false } (0 to 44)
-20: Name (46 to 52) "filter"
-21: Variable (53 to 61) "$closure"
-22: Call(CallId(0)) (53 to 61) - sub_nodes: 20,21
-23: Block(BlockId(1)) (0 to 62) - sub_nodes: 19,22
+19: PipeElement { expr: NodeId(18), redirection: None } (14 to 44)
+20: Let { variable_name: NodeId(0), ty: None, initializer: NodeId(19), is_mutable: false } (0 to 44)
+21: Name (46 to 52) "filter"
+22: Variable (53 to 61) "$closure"
+23: Call(CallId(0)) (46 to 61) - sub_nodes: 21,22
+24: Block(BlockId(1)) (0 to 62) - sub_nodes: 20,23
 ==== SCOPE ====
-0: Frame Scope, node_id: NodeId(23)
+0: Frame Scope, node_id: NodeId(24)
   variables: [ closure: NodeId(0) ]
 1: Frame Scope, node_id: NodeId(17)
   variables: [ a: NodeId(1), b: NodeId(5) ]
@@ -53,14 +54,14 @@ input_file: tests/closure3.nu
 16: bool
 17: bool
 18: closure
-19: ()
-20: unknown
-21: closure
-22: stream<binary>
+19: closure
+20: ()
+21: unknown
+22: closure
 23: stream<binary>
+24: stream<binary>
 ==== IR ====
 register_count: 0
 file_count: 0
 ==== IR ERRORS ====
-Error (NodeId 19): node Let { variable_name: NodeId(0), ty: None, initializer: NodeId(18), is_mutable: false } not suported yet
-
+Error (NodeId 20): node Let { variable_name: NodeId(0), ty: None, initializer: NodeId(19), is_mutable: false } not suported yet
