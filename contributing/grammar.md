@@ -32,9 +32,9 @@ pipeline_or_expression_or_assignment
                → pipeline | pipe_element | assignment ;
 pipeline_or_expression
                → pipeline | pipe_element ;
-pipeline       → pipe_element (pipe pipe_element)+ ;
+pipeline       → pipe_element (pipelike pipe_element)+ ;
 pipe_element    → expression_command redirection* ;
-pipe           → "|" | "e>|" | "err>|" | "out+err>|" | "err+out>|" ;
+pipelike       → "|" | "e>|" | "o+e>|" ;
 redirection    → file_redirection expression ;
 file_redirection
                → ">" | "o>" | ">>" | "o>>"
@@ -58,7 +58,7 @@ binding        → variable_decl type_annotation? ;
 variable_decl   → "$"? IDENTIFIER ;
 
 def_decl        → attribute_prefix? "def" def_option* command_name type_params? signature_params
-                 io_signature? block ;
+                 in_out_types? block ;
 def_option      → "--env" | "--wrapped" ;
 attribute_prefix
                → attribute NEWLINE (attribute NEWLINE)* ;
@@ -244,7 +244,7 @@ positional_parameter
 rest_parameter  → "..." IDENTIFIER type_annotation? ;
 flag_parameter  → flag_long ("(" short_flag ")")? type_annotation? default_value? ;
 default_value   → "=" expression ;
-io_signature    → ":" "[" in_out_type (separator? in_out_type)* separator? "]"
+in_out_types    → ":" "[" in_out_type (separator? in_out_type)* separator? "]"
                | ":" in_out_type ;
 in_out_type      → typename "->" typename ;
 type_annotation → ":" typename ("@" command_name)? ;

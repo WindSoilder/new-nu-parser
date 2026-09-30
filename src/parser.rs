@@ -1978,16 +1978,12 @@ impl Parser {
             code_body.push(self.mut_decl());
         } else if self.is_keyword(b"while") {
             code_body.push(self.while_statement());
+        } else if self.is_flow_statement() {
+            code_body.push(self.flow_statement());
         } else if self.is_keyword(b"for") {
             code_body.push(self.for_statement());
         } else if self.is_keyword(b"loop") {
-            code_body.push(self.loop_statement());
-        } else if self.is_keyword(b"return") {
-            code_body.push(self.return_statement());
-        } else if self.is_keyword(b"continue") {
-            code_body.push(self.continue_statement());
-        } else if self.is_keyword(b"break") {
-            code_body.push(self.break_statement());
+            code_body.push(self.loop_forever());
         } else if self.is_keyword(b"alias") {
             code_body.push(self.alias_decl());
         } else if self.is_keyword(b"extern") {
@@ -2008,6 +2004,22 @@ impl Parser {
             } else {
                 code_body.push(pipeline);
             }
+        }
+    }
+
+    pub fn is_flow_statement(&mut self) -> bool {
+        self.is_keyword(b"return") || self.is_keyword(b"continue") || self.is_keyword(b"break")
+    }
+
+    pub fn flow_statement(&mut self) -> NodeId {
+        if self.is_keyword(b"return") {
+            self.return_statement()
+        } else if self.is_keyword(b"continue") {
+            self.continue_statement()
+        } else if self.is_keyword(b"break") {
+            self.break_statement()
+        } else {
+            self.error("expect flow_statement")
         }
     }
 
@@ -2052,7 +2064,7 @@ impl Parser {
         )
     }
 
-    pub fn loop_statement(&mut self) -> NodeId {
+    pub fn loop_forever(&mut self) -> NodeId {
         let _span = span!();
         let span_start = self.position();
         self.keyword(b"loop");
