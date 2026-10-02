@@ -55,6 +55,9 @@ pub struct TypeArgsId(pub usize);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct PipelineId(pub usize);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct StringInterpId(pub usize);
+
 #[derive(Debug, Clone)]
 pub struct Block {
     pub nodes: Vec<NodeId>,
@@ -69,6 +72,17 @@ impl Block {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Params {
     pub nodes: Vec<NodeId>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StringInterp {
+    pub parts: Vec<NodeId>,
+}
+
+impl StringInterp {
+    pub fn new(parts: Vec<NodeId>) -> Self {
+        Self { parts }
+    }
 }
 
 impl Params {
@@ -251,7 +265,7 @@ pub enum AstNode {
     Float,
     String,
     RawString,
-    StringInterP(StringInterP),
+    StringInterp(StringInterpId),
     Name,
     Type {
         name: NodeId,
@@ -781,6 +795,12 @@ impl Parser {
                     output
                 }
             }
+            Token::StrInterpLParen => {
+                self.tokens.advance();
+                let output = self.expression();
+                self.string_interp_rparen();
+                output
+            }
             Token::LSquare => self.list_or_table(),
             Token::Int => self.advance_node(AstNode::Int, span),
             Token::Float => self.advance_node(AstNode::Float, span),
@@ -788,6 +808,8 @@ impl Parser {
             Token::SingleQuotedString => self.advance_node(AstNode::String, span),
             Token::RawString => self.advance_node(AstNode::RawString, span),
             Token::Dollar => self.variable(),
+            Token::DqStringInterpStart => self.string_interp(Token::DqStrInterpEnd),
+            Token::SqStringInterpStart => self.string_interp(Token::SqStrInterpEnd),
             Token::Bareword => match self.compiler.get_span_contents_manual(span.start, span.end) {
                 b"true" => self.advance_node(AstNode::True, span),
                 b"false" => self.advance_node(AstNode::False, span),
@@ -866,6 +888,39 @@ impl Parser {
     pub fn advance_node(&mut self, node: AstNode, span: Span) -> NodeId {
         self.tokens.advance();
         self.create_node(node, span.start, span.end)
+    }
+
+    pub fn string_interp(&mut self, end_token: Token) -> NodeId {
+        let mut parts = vec![];
+        let start = self.position();
+        self.tokens.advance();
+        while self.has_tokens() {
+            let (token, span) = self.tokens.peek();
+            match token {
+                Token::StrInterpChunk => {
+                    parts.push(self.create_node(AstNode::String, span.start, span.end));
+                    self.tokens.advance();
+                }
+                Token::StrInterpLParen => parts.push(self.expression()),
+                other => {
+                    if other == end_token {
+                        self.tokens.advance();
+                        break;
+                    } else {
+                        panic!(
+                            "Should be StringInterpChunk or StringInterpLParen, got `{other:?}` there may be error during lexing"
+                        )
+                    }
+                }
+            }
+        }
+            self.compiler.string_interps.push(StringInterp::new(parts));
+            let end = self.position();
+            self.create_node(
+                AstNode::StringInterp(StringInterpId(self.compiler.string_interps.len() - 1)),
+                start,
+                end,
+            )
     }
 
     pub fn variable(&mut self) -> NodeId {
@@ -2173,8 +2228,6 @@ impl Parser {
         self.tokens.peek_token() == Token::Equals
     }
 
-
-
     pub fn is_at(&mut self) -> bool {
         self.tokens.peek_token() == Token::At
     }
@@ -2188,7 +2241,6 @@ impl Parser {
     }
 
     pub fn is_dash(&self) -> bool {
-
         self.tokens.peek_token() == Token::Dash
     }
 
@@ -2208,6 +2260,10 @@ impl Parser {
         self.tokens.peek_token() == Token::RParen
     }
 
+    pub fn is_string_interp_rparen(&self) -> bool {
+        self.tokens.peek_token() == Token::StrInterpRParen
+    }
+
     pub fn is_lsquare(&mut self) -> bool {
         self.tokens.peek_token() == Token::LSquare
     }
@@ -2218,7 +2274,6 @@ impl Parser {
 
     pub fn is_less_than(&mut self) -> bool {
         self.tokens.peek_token() == Token::LessThan
-
     }
 
     pub fn is_greater_than(&mut self) -> bool {
@@ -2406,6 +2461,14 @@ impl Parser {
 
     pub fn rparen(&mut self) {
         if self.is_rparen() {
+            self.tokens.advance();
+        } else {
+            self.error("expected: right paren ')'");
+        }
+    }
+
+    pub fn string_interp_rparen(&mut self) {
+        if self.is_string_interp_rparen() {
             self.tokens.advance();
         } else {
             self.error("expected: right paren ')'");

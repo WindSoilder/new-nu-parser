@@ -1,7 +1,6 @@
 use crate::errors::SourceError;
 use crate::parser::{
-    AstNode, Attributes, Block, Call, InOutTypes, List, Match, NodeId, Params, Pipeline, Record,
-    Table, TypeArgs,
+    AstNode, Attributes, Block, Call, InOutTypes, List, Match, NodeId, Params, Pipeline, Record, StringInterp, Table, TypeArgs,
 };
 use crate::protocol::Command;
 use crate::resolver::{
@@ -69,6 +68,7 @@ pub struct Compiler {
     pub matches: Vec<Match>,           // Matches, indexed by MatchId
     pub type_args: Vec<TypeArgs>,      // TypeArgs, indexed by TypeArgsId
     pub pipelines: Vec<Pipeline>,      // Pipelines, indexed by PipelineId
+    pub string_interps: Vec<StringInterp>,  // StringInterPolcations, indexed by StringInterpId
     pub source: Vec<u8>,
     pub file_offsets: Vec<(String, usize, usize)>, // fname, start, end
 
@@ -126,6 +126,7 @@ impl Compiler {
             matches: vec![],
             type_args: vec![],
             pipelines: vec![],
+            string_interps: vec![],
             source: vec![],
             file_offsets: vec![],
 

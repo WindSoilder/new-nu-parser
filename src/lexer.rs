@@ -169,7 +169,7 @@ fn lex_internal_dq_string_interp(
                 );
             }
             Ok(DqStrInterpToken::End) => {
-                tokens.push(Token::StrInterpEnd, new_span);
+                tokens.push(Token::DqStrInterpEnd, new_span);
                 return Ok(());
             }
             Err(e) => {
@@ -217,7 +217,7 @@ fn lex_internal_sq_string_interp(
                 );
             }
             Ok(SqStrInterpToken::End) => {
-                tokens.push(Token::StrInterpEnd, new_span);
+                tokens.push(Token::SqStrInterpEnd, new_span);
                 return Ok(());
             }
             Err(e) => {
@@ -464,8 +464,10 @@ pub enum Token {
     StrInterpLParen,
     /// Right parenthesis inside any string interpolation (returned from separate lexing)
     StrInterpRParen,
-    /// End of any string interpolation (returned from separate lexing)
-    StrInterpEnd,
+    /// End of double string interpolation (returned from separate lexing)
+    DqStrInterpEnd,
+    /// End of simple string interpolation (returned from separate lexing)
+    SqStrInterpEnd,
     /// End of file, doesn't match any syntax, but lexed tokens always end with it
     Eof,
 }
