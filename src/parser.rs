@@ -250,6 +250,8 @@ pub enum AstNode {
     Int,
     Float,
     String,
+    RawString,
+    StringInterP(StringInterP),
     Name,
     Type {
         name: NodeId,
@@ -760,7 +762,7 @@ impl Parser {
 
         // skip comments and newlines
         while self.is_comment() || self.is_newline() {
-            self.tokens.advance();
+            self.tokens.advance()
         }
 
         let span_start = self.position();
@@ -784,6 +786,7 @@ impl Parser {
             Token::Float => self.advance_node(AstNode::Float, span),
             Token::DoubleQuotedString => self.advance_node(AstNode::String, span),
             Token::SingleQuotedString => self.advance_node(AstNode::String, span),
+            Token::RawString => self.advance_node(AstNode::RawString, span),
             Token::Dollar => self.variable(),
             Token::Bareword => match self.compiler.get_span_contents_manual(span.start, span.end) {
                 b"true" => self.advance_node(AstNode::True, span),
@@ -2170,6 +2173,8 @@ impl Parser {
         self.tokens.peek_token() == Token::Equals
     }
 
+
+
     pub fn is_at(&mut self) -> bool {
         self.tokens.peek_token() == Token::At
     }
@@ -2183,6 +2188,7 @@ impl Parser {
     }
 
     pub fn is_dash(&self) -> bool {
+
         self.tokens.peek_token() == Token::Dash
     }
 
@@ -2212,6 +2218,7 @@ impl Parser {
 
     pub fn is_less_than(&mut self) -> bool {
         self.tokens.peek_token() == Token::LessThan
+
     }
 
     pub fn is_greater_than(&mut self) -> bool {
