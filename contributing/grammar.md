@@ -19,7 +19,7 @@ Note that the rule name in this grammar does not map directly to [parser.rs](../
 ## Program structure
 
 ```text
-program        → shebang? terminator* statement_sequence? terminator* EOF ;
+program        → statement_sequence? terminator* EOF ;
 statement_sequence
                → "{"? statement (terminator+ statement)* "}"?;
 terminator     → NEWLINE | ";" ;
@@ -272,7 +272,6 @@ matching. These are deliberately not expressed as ordinary context-free producti
 
 ```text
 line_comment    → "#" characters_until_newline ;
-shebang        → "#!" characters_until_newline NEWLINE ;
 skip           → (space | tab | line_comment)* ;
 
 single_quoted_string
