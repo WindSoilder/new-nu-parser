@@ -1,3 +1,4 @@
+use ariadne::{Report, ReportKind, Source};
 use std::process::exit;
 
 use new_nu_parser::compiler::Compiler;
@@ -34,14 +35,28 @@ fn main() {
 
         let (tokens, err) = lex(&contents, span_offset);
         if let Err(e) = err {
-            tokens.print(&compiler.source);
-            eprintln!(
-                "Lexing error. Error: {:?}, '{}'",
-                e,
-                String::from_utf8_lossy(
-                    compiler.get_span_contents_manual(e.span.start, e.span.end)
-                )
-            );
+            // convert source from Vec<u8> to String
+            let error_span = e.span;
+            let source: String = String::from_utf8_lossy(
+                compiler.get_span_contents_manual(error_span.start, error_span.end),
+            )
+            .to_string();
+            Report::build(
+                ReportKind::Error,
+                ("sample.tao", (error_span.start..error_span.end)),
+            )
+            .with_message(format!("Lexing error: {:?}", e))
+            .finish()
+            .eprint(("sample.tao", Source::from(source)))
+            .unwrap();
+            // tokens.print(&compiler.source);
+            // eprintln!(
+            //     "Lexing error. Error: {:?}, '{}'",
+            //     e,
+            //     String::from_utf8_lossy(
+            //         compiler.get_span_contents_manual(e.span.start, e.span.end)
+            //     )
+            // );
             exit(1);
         }
 

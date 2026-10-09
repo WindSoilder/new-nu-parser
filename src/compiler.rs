@@ -1,12 +1,14 @@
 use crate::errors::SourceError;
 use crate::parser::{
-    AstNode, Attributes, Block, Call, InOutTypes, List, Match, NodeId, Params, Pipeline, Record, StringInterp, Table, TypeArgs,
+    AstNode, Attributes, Block, Call, InOutTypes, List, Match, NodeId, Params, Pipeline, Record,
+    StringInterp, Table, TypeArgs,
 };
 use crate::protocol::Command;
 use crate::resolver::{
     DeclId, Frame, NameBindings, ScopeId, TypeDecl, TypeDeclId, VarId, Variable,
 };
 use crate::typechecker::{TypeId, Types};
+use ariadne::{Report, ReportKind, Source};
 use std::collections::HashMap;
 
 pub struct RollbackPoint {
@@ -57,18 +59,18 @@ pub struct Compiler {
     pub ast_nodes: Vec<AstNode>,
     pub node_types: Vec<TypeId>,
     // node_lifetimes: Vec<AllocationLifetime>,
-    pub blocks: Vec<Block>,            // Blocks, indexed by BlockId
-    pub params: Vec<Params>,           // Params, indexed by ParamsId
-    pub in_out_types: Vec<InOutTypes>, // InOutTypes, indexed by InOutTypesId
-    pub calls: Vec<Call>,              // Calls, indexed by CallId
-    pub attributes: Vec<Attributes>,   // Attributes, indexed by AttributeId
-    pub lists: Vec<List>,              // Lists, indexed by ListId
-    pub tables: Vec<Table>,            // Tables, indexed by TableId
-    pub records: Vec<Record>,          // Records, indexed by RecordId
-    pub matches: Vec<Match>,           // Matches, indexed by MatchId
-    pub type_args: Vec<TypeArgs>,      // TypeArgs, indexed by TypeArgsId
-    pub pipelines: Vec<Pipeline>,      // Pipelines, indexed by PipelineId
-    pub string_interps: Vec<StringInterp>,  // StringInterPolcations, indexed by StringInterpId
+    pub blocks: Vec<Block>,                // Blocks, indexed by BlockId
+    pub params: Vec<Params>,               // Params, indexed by ParamsId
+    pub in_out_types: Vec<InOutTypes>,     // InOutTypes, indexed by InOutTypesId
+    pub calls: Vec<Call>,                  // Calls, indexed by CallId
+    pub attributes: Vec<Attributes>,       // Attributes, indexed by AttributeId
+    pub lists: Vec<List>,                  // Lists, indexed by ListId
+    pub tables: Vec<Table>,                // Tables, indexed by TableId
+    pub records: Vec<Record>,              // Records, indexed by RecordId
+    pub matches: Vec<Match>,               // Matches, indexed by MatchId
+    pub type_args: Vec<TypeArgs>,          // TypeArgs, indexed by TypeArgsId
+    pub pipelines: Vec<Pipeline>,          // Pipelines, indexed by PipelineId
+    pub string_interps: Vec<StringInterp>, // StringInterPolcations, indexed by StringInterpId
     pub source: Vec<u8>,
     pub file_offsets: Vec<(String, usize, usize)>, // fname, start, end
 
@@ -251,11 +253,19 @@ impl Compiler {
 
         if !self.errors.is_empty() {
             result.push_str("==== COMPILER ERRORS ====\n");
+
             for error in &self.errors {
-                result.push_str(&format!(
-                    "{:?} (NodeId {}): {}\n",
-                    error.severity, error.node_id.0, error.message
-                ));
+                // convert source from Vec<u8> to String
+                let source: String = String::from_utf8_lossy(&self.source).to_string();
+                let error_span = self.spans[error.node_id.0];
+                Report::build(
+                    ReportKind::Error,
+                    ("sample.tao", (error_span.start..error_span.end)),
+                )
+                .with_message(&error.message)
+                .finish()
+                .eprint(("sample.tao", Source::from(source)))
+                .unwrap();
             }
         }
 
