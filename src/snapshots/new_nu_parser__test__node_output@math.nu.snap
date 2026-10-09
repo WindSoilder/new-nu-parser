@@ -22,6 +22,5 @@ register_count: 2
 file_count: 0
 0: LoadLiteral { dst: RegId(0), lit: Int(3) }
 1: LoadLiteral { dst: RegId(1), lit: Int(4) }
-2: BinaryOp { lhs_dst: RegId(0), op: Math(Plus), rhs: RegId(1) }
+2: BinaryOp { lhs_dst: RegId(0), op: Math(Add), rhs: RegId(1) }
 3: Return { src: RegId(0) }
-

@@ -1,12 +1,12 @@
 use std::process::exit;
 
-use new_nu_parser::lexer::{lex, Tokens};
+use new_nu_parser::lexer::{Tokens, lex};
 use nu_cmd_lang::{
     Break, Collect, Def, Echo, ExportCommand, ExportDef, For, If, Let, Module, Mut, Use,
 };
 use nu_protocol::engine::{EngineState, StateWorkingSet};
 use nu_protocol::report_parse_error;
-use tango_bench::{benchmark_fn, tango_benchmarks, tango_main, Benchmark, IntoBenchmarks};
+use tango_bench::{Benchmark, IntoBenchmarks, benchmark_fn, tango_benchmarks};
 
 use new_nu_parser::compiler::Compiler;
 use new_nu_parser::parser::Parser;
@@ -216,7 +216,7 @@ fn parse_nu_old(engine_state: &EngineState, contents: &[u8]) {
 
     // if any errors, report them and panic
     for error in working_set.parse_errors.iter() {
-        report_parse_error(&working_set, error);
+        report_parse_error(None, &working_set, error);
     }
     assert!(working_set.parse_errors.is_empty());
 }
@@ -348,4 +348,3 @@ fn repeated_compiler_benchmarks() -> impl IntoBenchmarks {
 }
 
 tango_benchmarks!(repeated_compiler_benchmarks());
-tango_main!();

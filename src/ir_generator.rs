@@ -26,6 +26,7 @@ impl<'a> IrGenerator<'a> {
                 comments: Default::default(),
                 register_count: 0,
                 file_count: 0,
+                scope_regions: Default::default(),
             },
         }
     }
@@ -151,7 +152,7 @@ impl<'a> IrGenerator<'a> {
 
     fn node_to_operator(&mut self, node_id: NodeId) -> Option<Operator> {
         match self.compiler.get_node(node_id) {
-            AstNode::Plus => Some(Operator::Math(Math::Plus)),
+            AstNode::Plus => Some(Operator::Math(Math::Add)),
             AstNode::Multiply => Some(Operator::Math(Math::Multiply)),
             node => {
                 self.error(format!("unrecognized operator {:?}", node), node_id);

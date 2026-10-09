@@ -308,7 +308,7 @@ fn match_rawstring(remainder: &[u8], lexer: &mut Lexer<Token>) -> Result<(), Lex
 
 #[derive(Logos, Debug, Clone, Copy, PartialEq)]
 #[logos(skip r"[ \t]+")]
-#[logos(source = [u8], error = LexError)]
+#[logos(utf8 = false, error = LexError)]
 pub enum Token {
     #[regex("(0[xob])?[0-9][0-9_]*", priority = 10)]
     Int,
@@ -328,7 +328,7 @@ pub enum Token {
     // HorizontalWhitespace,
     #[regex(r#"[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]+)?)?(Z|[\+-][0-9]{2}:[0-9]{2})?"#)]
     Datetime,
-    #[regex(r#"#[^\n]*"#, priority = 20)]
+    #[regex(r#"#[^\n]*"#, priority = 20, allow_greedy = true)]
     Comment,
     // lower priority to avoid clashing with Int
     #[regex(r#"(_|[^\s[:punct:]])(#|_|[^\s[:punct:]])*"#, priority = 2)]
@@ -509,7 +509,7 @@ fn match_subexpression<'a, T: Logos<'a>>(
 
 /// Tokens representing double-quoted string interpolation
 #[derive(Logos, Debug, Clone, Copy, PartialEq)]
-#[logos(source = [u8], error = LexError)]
+#[logos(utf8 = false, error = LexError)]
 enum DqStrInterpToken {
     #[token(r#"$""#)]
     Start,
@@ -523,7 +523,7 @@ enum DqStrInterpToken {
 
 /// Tokens representing single-quoted string interpolation
 #[derive(Logos, Debug, Clone, Copy, PartialEq)]
-#[logos(source = [u8], error=LexError)]
+#[logos(utf8 = false, error = LexError)]
 enum SqStrInterpToken {
     #[token(r#"$'"#)]
     Start,
@@ -539,7 +539,7 @@ enum SqStrInterpToken {
 mod test {
     /// Lexer tests useful for smaller sources, errors and corner cases
     use crate::compiler::{Span, Spanned};
-    use crate::lexer::{lex, Token};
+    use crate::lexer::{Token, lex};
 
     use super::LexError;
 

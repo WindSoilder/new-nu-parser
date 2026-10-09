@@ -6,9 +6,9 @@ edition = "2024"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tracy-client = { version = "0.17.3", default-features = false } # for tracy v0.11.1
-logos = "0.15"
-nu-protocol = "0.101"
+tracy-client = { version = "0.19.0", default-features = false } # for tracy v0.14.1
+logos = "0.16"
+nu-protocol = "0.116"
 
 [profile.profiling]
 inherits = "release"
@@ -28,10 +28,10 @@ name = "new_nu_parser"
 path = "src/lib.rs"
 
 [dev-dependencies]
-insta = { version = "1.33.0", features = ["glob"] }
-tango-bench = "0.6"
-nu-parser = "0.101"
-nu-cmd-lang = "0.101"
+insta = { version = "1.49.0", features = ["glob"] }
+tango-bench = "0.8"
+nu-parser = "0.116"
+nu-cmd-lang = "0.116"
 
 [[bench]]
 name = "benchmarks"
