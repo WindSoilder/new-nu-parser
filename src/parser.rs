@@ -797,9 +797,16 @@ impl Parser {
             }
             Token::StrInterpLParen => {
                 self.tokens.advance();
-                let output = self.expression();
-                self.string_interp_rparen();
-                output
+                // handle for empty string interpolation, e.g. `$()`
+                if self.tokens.peek_token() == Token::StrInterpRParen {
+                    self.tokens.advance();
+                    // replace it with empty string.
+                    self.create_node(AstNode::String, span.start, span.start)
+                } else {
+                    let output = self.expression();
+                    self.string_interp_rparen();
+                    output
+                }
             }
             Token::LSquare => self.list_or_table(),
             Token::Int => self.advance_node(AstNode::Int, span),

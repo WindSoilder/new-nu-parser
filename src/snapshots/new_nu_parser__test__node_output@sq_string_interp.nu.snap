@@ -1,0 +1,108 @@
+---
+source: src/test.rs
+expression: evaluate_example(path)
+input_file: tests/sq_string_interp.nu
+---
+==== COMPILER ====
+0: StringInterp(StringInterpId(0)) (0 to 3)
+1: String (6 to 9) "foo"
+2: StringInterp(StringInterpId(1)) (4 to 10)
+3: String (13 to 17) "foo)"
+4: StringInterp(StringInterpId(2)) (11 to 18)
+5: Int (22 to 23) "1"
+6: String (24 to 27) "bar"
+7: StringInterp(StringInterpId(3)) (19 to 28)
+8: String (31 to 34) "foo"
+9: Int (35 to 36) "1"
+10: String (37 to 40) "bar"
+11: StringInterp(StringInterpId(4)) (29 to 41)
+12: String (44 to 47) "foo"
+13: Int (49 to 50) "1"
+14: String (52 to 55) "bar"
+15: StringInterp(StringInterpId(5)) (42 to 56)
+16: String (59 to 62) "foo"
+17: Int (63 to 64) "1"
+18: Plus (65 to 66)
+19: Int (68 to 69) "3"
+20: Plus (70 to 71)
+21: Int (72 to 73) "4"
+22: BinaryOp { lhs: NodeId(19), op: NodeId(20), rhs: NodeId(21) } (68 to 73)
+23: BinaryOp { lhs: NodeId(17), op: NodeId(18), rhs: NodeId(22) } (63 to 73)
+24: String (75 to 78) "bar"
+25: StringInterp(StringInterpId(6)) (57 to 79)
+26: String (82 to 85) "foo"
+27: String (85 to 85) ""
+28: String (87 to 90) "bar"
+29: StringInterp(StringInterpId(7)) (80 to 91)
+30: String (94 to 97) "foo"
+31: Int (101 to 102) "1"
+32: Plus (103 to 104)
+33: Int (106 to 107) "2"
+34: Plus (108 to 109)
+35: Int (110 to 111) "3"
+36: BinaryOp { lhs: NodeId(33), op: NodeId(34), rhs: NodeId(35) } (106 to 111)
+37: BinaryOp { lhs: NodeId(31), op: NodeId(32), rhs: NodeId(36) } (101 to 111)
+38: StringInterp(StringInterpId(8)) (98 to 114)
+39: String (115 to 118) "bar"
+40: StringInterp(StringInterpId(9)) (92 to 119)
+41: Block(BlockId(0)) (0 to 120) - sub_nodes: 0,2,...,29,40
+==== SCOPE ====
+0: Frame Scope, node_id: NodeId(41) (empty)
+==== TYPES ====
+0: unknown
+1: unknown
+2: unknown
+3: unknown
+4: unknown
+5: unknown
+6: unknown
+7: unknown
+8: unknown
+9: unknown
+10: unknown
+11: unknown
+12: unknown
+13: unknown
+14: unknown
+15: unknown
+16: unknown
+17: unknown
+18: unknown
+19: unknown
+20: unknown
+21: unknown
+22: unknown
+23: unknown
+24: unknown
+25: unknown
+26: unknown
+27: unknown
+28: unknown
+29: unknown
+30: unknown
+31: unknown
+32: unknown
+33: unknown
+34: unknown
+35: unknown
+36: unknown
+37: unknown
+38: unknown
+39: unknown
+40: unknown
+41: unknown
+==== TYPE ERRORS ====
+Error (NodeId 0): Expected statement to typecheck, got 'StringInterp(StringInterpId(0))'
+Error (NodeId 2): Expected statement to typecheck, got 'StringInterp(StringInterpId(1))'
+Error (NodeId 4): Expected statement to typecheck, got 'StringInterp(StringInterpId(2))'
+Error (NodeId 7): Expected statement to typecheck, got 'StringInterp(StringInterpId(3))'
+Error (NodeId 11): Expected statement to typecheck, got 'StringInterp(StringInterpId(4))'
+Error (NodeId 15): Expected statement to typecheck, got 'StringInterp(StringInterpId(5))'
+Error (NodeId 25): Expected statement to typecheck, got 'StringInterp(StringInterpId(6))'
+Error (NodeId 29): Expected statement to typecheck, got 'StringInterp(StringInterpId(7))'
+Error (NodeId 40): Expected statement to typecheck, got 'StringInterp(StringInterpId(9))'
+==== IR ====
+register_count: 0
+file_count: 0
+==== IR ERRORS ====
+Error (NodeId 0): node StringInterp(StringInterpId(0)) not suported yet
