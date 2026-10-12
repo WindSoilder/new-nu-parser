@@ -8,7 +8,6 @@ use crate::resolver::{
     DeclId, Frame, NameBindings, ScopeId, TypeDecl, TypeDeclId, VarId, Variable,
 };
 use crate::typechecker::{TypeId, Types};
-use ariadne::{Report, ReportKind, Source};
 use std::collections::HashMap;
 
 pub struct RollbackPoint {
@@ -253,19 +252,11 @@ impl Compiler {
 
         if !self.errors.is_empty() {
             result.push_str("==== COMPILER ERRORS ====\n");
-
             for error in &self.errors {
-                // convert source from Vec<u8> to String
-                let source: String = String::from_utf8_lossy(&self.source).to_string();
-                let error_span = self.spans[error.node_id.0];
-                Report::build(
-                    ReportKind::Error,
-                    ("sample.tao", (error_span.start..error_span.end)),
-                )
-                .with_message(&error.message)
-                .finish()
-                .eprint(("sample.tao", Source::from(source)))
-                .unwrap();
+                result.push_str(&format!(
+                    "{:?} (NodeId {}): {}\n",
+                    error.severity, error.node_id.0, error.message
+                ));
             }
         }
 
