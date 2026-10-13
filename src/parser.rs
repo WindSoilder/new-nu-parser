@@ -921,13 +921,13 @@ impl Parser {
                 }
             }
         }
-            self.compiler.string_interps.push(StringInterp::new(parts));
-            let end = self.position();
-            self.create_node(
-                AstNode::StringInterp(StringInterpId(self.compiler.string_interps.len() - 1)),
-                start,
-                end,
-            )
+        self.compiler.string_interps.push(StringInterp::new(parts));
+        let end = self.position();
+        self.create_node(
+            AstNode::StringInterp(StringInterpId(self.compiler.string_interps.len() - 1)),
+            start,
+            end,
+        )
     }
 
     pub fn variable(&mut self) -> NodeId {
@@ -1279,7 +1279,10 @@ impl Parser {
     fn identifier_allow_dash(&mut self) -> NodeId {
         let span = self.tokens.peek_span();
         let (span_start, mut span_end) = (span.start, span.end);
-        while self.has_tokens() && (self.is_name() || self.is_dash()) {
+        let (Token::Bareword, _) = self.tokens.peek() else {
+            return self.error("expected: name");
+        };
+        while self.has_tokens() && (self.is_name() || self.is_dash()) && !self.is_newline() {
             span_end = self.tokens.peek_span().end;
             self.tokens.advance();
             let next_span = self.tokens.peek_span();
@@ -1999,7 +2002,10 @@ impl Parser {
             let mut has_attribute_parse_error = false;
 
             while self.is_at() {
+                let prev_error_count = self.error_count();
                 attributes.push(self.attribute());
+                let after_error_count = self.error_count();
+                has_attribute_parse_error |= after_error_count > prev_error_count;
 
                 if !self.is_newline() && !self.is_eof() {
                     code_body.push(
@@ -2020,17 +2026,8 @@ impl Parser {
                     let attributes_id = AttributeId(self.compiler.attributes.len() - 1);
                     code_body.push(self.def_decl(Some(attributes_id), declaration_start));
                 } else {
-                    let span = self.tokens.peek_span();
-                    let node_id = self.create_node(AstNode::Garbage, span.start, span.end);
-                    self.compiler.errors.push(SourceError {
-                        message: "attribute prefix must be followed by a `def` declaration"
-                            .to_string(),
-                        node_id,
-                        severity: Severity::Error,
-                    });
-                    while self.has_tokens() && !self.is_newline() {
-                        self.tokens.advance();
-                    }
+                    let node_id =
+                        self.error("attribute prefix must be followed by a `def` declaration");
                     code_body.push(node_id);
                 }
             }
@@ -2448,6 +2445,10 @@ impl Parser {
         });
 
         node_id
+    }
+
+    pub fn error_count(&self) -> usize {
+        self.compiler.errors.len()
     }
 
     pub fn create_node(&mut self, ast_node: AstNode, span_start: usize, span_end: usize) -> NodeId {
