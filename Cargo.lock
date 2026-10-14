@@ -1387,6 +1387,7 @@ dependencies = [
  "insta",
  "logos",
  "nu-cmd-lang",
+ "nu-engine",
  "nu-parser",
  "nu-protocol",
  "tango-bench",

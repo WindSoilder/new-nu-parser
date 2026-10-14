@@ -1,22 +1,7 @@
+mod declaration;
+
 pub trait Command: CommandClone {
     fn name(&self) -> &str;
-}
-
-#[derive(Clone)]
-pub struct Declaration {
-    name: String,
-}
-
-impl Declaration {
-    pub fn new(name: String) -> Self {
-        Self { name }
-    }
-}
-
-impl Command for Declaration {
-    fn name(&self) -> &str {
-        &self.name
-    }
 }
 
 // Cloning implementation taken from Nushell
@@ -38,3 +23,5 @@ impl Clone for Box<dyn Command> {
         self.clone_box()
     }
 }
+
+pub use declaration::Declaration;
