@@ -1,6 +1,8 @@
 //! See typechecking.md in the contributing/ folder for more information on
 //! how the typechecker works
 
+use serde::{Deserialize, Serialize};
+
 use crate::compiler::Compiler;
 use crate::errors::{Severity, SourceError};
 use crate::parser::{AstNode, NodeId};
@@ -8,7 +10,7 @@ use crate::resolver::{TypeDecl, TypeDeclId};
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TypeId(pub usize);
 
 /// Input/output type pair of a closure/command
@@ -24,19 +26,19 @@ pub struct TypeVar {
     upper_bound: TypeId,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct TypeVarId(pub usize);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RecordTypeId(pub usize);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OneOfId(pub usize);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AllOfId(pub usize);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Type {
     /// Any node that hasn't been touched by the typechecker will have this type
     Unknown,
