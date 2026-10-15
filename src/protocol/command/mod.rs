@@ -1,7 +1,45 @@
 mod declaration;
+mod def;
+mod prelude;
+mod signature;
+
+use nu_protocol::DeprecationEntry;
+use prelude::*;
 
 pub trait Command: CommandClone {
     fn name(&self) -> &str;
+    fn description(&self) -> &str {
+        ""
+    }
+    fn signature(&self) -> Signature;
+    fn extra_description(&self) -> &str {
+        ""
+    }
+    fn command_type(&self) -> CommandType {
+        CommandType::Builtin
+    }
+    fn block_id(&self) -> Option<BlockId> {
+        None
+    }
+    fn attributes(&self) -> Vec<(String, Value)> {
+        vec![]
+    }
+    fn search_terms(&self) -> Vec<&str> {
+        vec![]
+    }
+    fn deprecation_info(&self) -> Vec<DeprecationEntry> {
+        vec![]
+    }
+    fn run(
+        &self,
+        engine_state: &EngineState,
+        stack: &mut Stack,
+        call: &Call,
+        input: PipelineData,
+    ) -> Result<PipelineData, ShellError>;
+    fn examples(&self) -> Vec<Example<'_>> {
+        vec![]
+    }
 }
 
 // Cloning implementation taken from Nushell

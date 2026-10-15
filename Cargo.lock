@@ -1387,9 +1387,12 @@ dependencies = [
  "insta",
  "logos",
  "nu-cmd-lang",
+ "nu-derive-value",
  "nu-engine",
  "nu-parser",
  "nu-protocol",
+ "nu-utils",
+ "serde",
  "tango-bench",
  "tracy-client",
 ]

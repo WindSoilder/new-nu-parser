@@ -1,18 +1,15 @@
-use crate::{
+use crate::typechecker::Type;
+use nu_derive_value::FromValue as DeriveFromValue;
+use nu_protocol::{
     BlockId, CompareTypes, DeclId, DeprecationEntry, Example, FromValue, IntoValue, PipelineData,
-    ShellError, Span, SyntaxShape, Type, TypeSet, Value, VarId,
-    engine::{Call, Command, CommandType, EngineState, Stack},
+    ShellError, Span, TypeSet, Value, VarId,
+    engine::{Call, CommandType, EngineState, Stack},
     shell_error::generic::GenericError,
 };
-use nu_derive_value::FromValue as DeriveFromValue;
 use nu_utils::NuCow;
 use serde::{Deserialize, Serialize};
+use super::Command;
 use std::fmt::Write;
-
-// Make nu_protocol available in this namespace, consumers of this crate will
-// have this without such an export.
-// The `FromValue` derive macro fully qualifies paths to "nu_protocol".
-use crate as nu_protocol;
 
 pub enum Parameter {
     Required(PositionalArg),
@@ -32,7 +29,7 @@ impl From<Flag> for Parameter {
 pub struct Flag {
     pub long: String,
     pub short: Option<char>,
-    pub arg: Option<SyntaxShape>,
+    pub arg: Option<Type>,
     pub required: bool,
     pub desc: String,
     pub completion: Option<Completion>,
@@ -84,7 +81,7 @@ impl Flag {
     }
 
     #[inline]
-    pub fn arg(self, arg: SyntaxShape) -> Self {
+    pub fn arg(self, arg: Type) -> Self {
         Self {
             arg: Some(arg),
             ..self
@@ -121,7 +118,7 @@ impl Flag {
 pub struct PositionalArg {
     pub name: String,
     pub desc: String,
-    pub shape: SyntaxShape,
+    pub shape: Type,
     pub completion: Option<Completion>,
 
     // For custom commands
@@ -131,7 +128,7 @@ pub struct PositionalArg {
 
 impl PositionalArg {
     #[inline]
-    pub fn new(name: impl Into<String>, shape: SyntaxShape) -> Self {
+    pub fn new(name: impl Into<String>, shape: Type) -> Self {
         Self {
             name: name.into(),
             desc: String::new(),
@@ -554,7 +551,7 @@ impl Signature {
     pub fn required(
         mut self,
         name: impl Into<String>,
-        shape: impl Into<SyntaxShape>,
+        shape: impl Into<Type>,
         desc: impl Into<String>,
     ) -> Signature {
         self.required_positional.push(PositionalArg {
@@ -573,7 +570,7 @@ impl Signature {
     pub fn optional(
         mut self,
         name: impl Into<String>,
-        shape: impl Into<SyntaxShape>,
+        shape: impl Into<Type>,
         desc: impl Into<String>,
     ) -> Signature {
         self.optional_positional.push(PositionalArg {
@@ -598,7 +595,7 @@ impl Signature {
     pub fn rest(
         mut self,
         name: &str,
-        shape: impl Into<SyntaxShape>,
+        shape: impl Into<Type>,
         desc: impl Into<String>,
     ) -> Signature {
         self.rest_positional = Some(PositionalArg {
@@ -622,7 +619,7 @@ impl Signature {
                 matches!(
                     pos,
                     PositionalArg {
-                        shape: SyntaxShape::CellPath,
+                        shape: Type::CellPath,
                         ..
                     }
                 )
@@ -633,7 +630,7 @@ impl Signature {
     pub fn named(
         mut self,
         name: impl Into<String>,
-        shape: impl Into<SyntaxShape>,
+        shape: impl Into<Type>,
         desc: impl Into<String>,
         short: Option<char>,
     ) -> Signature {
@@ -657,7 +654,7 @@ impl Signature {
     pub fn required_named(
         mut self,
         name: impl Into<String>,
-        shape: impl Into<SyntaxShape>,
+        shape: impl Into<Type>,
         desc: impl Into<String>,
         short: Option<char>,
     ) -> Signature {
@@ -826,13 +823,13 @@ impl Signature {
         let mut total = self.required_positional.len() + self.optional_positional.len();
 
         for positional in &self.required_positional {
-            if let SyntaxShape::Keyword(..) = positional.shape {
+            if let Type::Keyword(..) = positional.shape {
                 // Keywords have a required argument, so account for that
                 total += 1;
             }
         }
         for positional in &self.optional_positional {
-            if let SyntaxShape::Keyword(..) = positional.shape {
+            if let Type::Keyword(..) = positional.shape {
                 // Keywords have a required argument, so account for that
                 total += 1;
             }
@@ -932,7 +929,7 @@ impl Command for Predeclaration {
         _stack: &mut Stack,
         _call: &Call,
         _input: PipelineData,
-    ) -> Result<PipelineData, crate::ShellError> {
+    ) -> Result<PipelineData, ShellError> {
         panic!("Internal error: can't run a predeclaration without a body")
     }
 
@@ -943,7 +940,7 @@ impl Command for Predeclaration {
 
 fn get_positional_short_name(arg: &PositionalArg, is_required: bool) -> String {
     match &arg.shape {
-        SyntaxShape::Keyword(name, ..) => {
+        Type::Keyword(name, ..) => {
             if is_required {
                 format!("{} <{}> ", String::from_utf8_lossy(name), arg.name)
             } else {
@@ -1008,7 +1005,7 @@ impl Command for BlockCommand {
         _stack: &mut Stack,
         _call: &Call,
         _input: PipelineData,
-    ) -> Result<crate::PipelineData, crate::ShellError> {
+    ) -> Result<PipelineData, ShellError> {
         Err(ShellError::Generic(GenericError::new_internal(
             "Internal error: can't run custom command with 'run', use block_id",
             "",

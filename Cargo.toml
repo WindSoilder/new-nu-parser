@@ -8,9 +8,12 @@ edition = "2024"
 [dependencies]
 tracy-client = { version = "0.19.0", default-features = false } # for tracy v0.14.1
 logos = "0.16"
+ariadne = "0.6"
 nu-protocol = "0.116"
 nu-engine = "0.116"
-ariadne = "0.6"
+nu-derive-value = "0.116"
+nu-utils = "0.116"
+serde = { version = "1.0", features = ["derive"] }
 
 [profile.profiling]
 inherits = "release"

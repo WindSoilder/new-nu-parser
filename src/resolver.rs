@@ -4,6 +4,7 @@ use crate::{
     errors::{Severity, SourceError},
     parser::{AstNode, NodeId, PipelineId},
 };
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
@@ -56,7 +57,7 @@ pub enum TypeDecl {
     // In the future, we may have type aliases, user-defined classes, etc.
 }
 
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TypeDeclId(pub usize);
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
