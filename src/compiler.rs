@@ -1,6 +1,7 @@
 use crate::errors::SourceError;
+use crate::id::NodeId;
 use crate::parser::{
-    AstNode, Attributes, Block, Call, InOutTypes, List, Match, NodeId, Params, Pipeline, Record,
+    AstNode, Attributes, Block, Call, InOutTypes, List, Match, Params, Pipeline, Record,
     StringInterp, Table, TypeArgs,
 };
 use crate::protocol::Command;
@@ -177,47 +178,49 @@ impl Compiler {
         }
 
         fn display_nodes(nodes: &[NodeId]) -> String {
-            display_items(nodes, |node_id| node_id.to_string())
+            display_items(nodes, |node_id| node_id.get().to_string())
         }
 
         fn display_node_pairs(pairs: &[(NodeId, NodeId)]) -> String {
-            display_items(pairs, |(lhs, rhs)| format!("{lhs}: {rhs}"))
+            display_items(pairs, |(lhs, rhs)| format!("{}: {}", lhs.get(), rhs.get()))
         }
 
         for (idx, ast_node) in self.ast_nodes.iter().enumerate() {
             let sub_nodes_str = match ast_node {
-                AstNode::Block(block_id) => Some(display_nodes(&self.blocks[block_id.0].nodes)),
+                AstNode::Block(block_id) => Some(display_nodes(&self.blocks[block_id.get()].nodes)),
                 AstNode::TypeArgs(type_args_id) => {
-                    Some(display_nodes(&self.type_args[type_args_id.0].args))
+                    Some(display_nodes(&self.type_args[type_args_id.get()].args))
                 }
-                AstNode::Params(params_id) => Some(display_nodes(&self.params[params_id.0].nodes)),
-                AstNode::InOutTypes(in_out_types_id) => {
-                    Some(display_nodes(&self.in_out_types[in_out_types_id.0].nodes))
+                AstNode::Params(params_id) => {
+                    Some(display_nodes(&self.params[params_id.get()].nodes))
                 }
-                AstNode::Call(call_id) => Some(display_nodes(&self.calls[call_id.0].parts)),
-                AstNode::List(list_id) => Some(display_nodes(&self.lists[list_id.0].items)),
+                AstNode::InOutTypes(in_out_types_id) => Some(display_nodes(
+                    &self.in_out_types[in_out_types_id.get()].nodes,
+                )),
+                AstNode::Call(call_id) => Some(display_nodes(&self.calls[call_id.get()].parts)),
+                AstNode::List(list_id) => Some(display_nodes(&self.lists[list_id.get()].items)),
                 AstNode::Table(table_id) => {
-                    let table = &self.tables[table_id.0];
+                    let table = &self.tables[table_id.get()];
                     Some(format!(
                         "header: {}, rows: {}",
-                        table.header,
+                        table.header.get(),
                         display_nodes(&table.rows)
                     ))
                 }
                 AstNode::Record(record_id) => {
-                    let record = &self.records[record_id.0];
+                    let record = &self.records[record_id.get()];
                     Some(format!("pairs: {}", display_node_pairs(&record.pairs)))
                 }
                 AstNode::Match(match_id) => {
-                    let match_node = &self.matches[match_id.0];
+                    let match_node = &self.matches[match_id.get()];
                     Some(format!(
                         "target: {}, arms: {}",
-                        match_node.target,
+                        match_node.target.get(),
                         display_node_pairs(&match_node.match_arms)
                     ))
                 }
                 AstNode::Pipeline(pipeline_id) => {
-                    Some(display_nodes(&self.pipelines[pipeline_id.0].nodes))
+                    Some(display_nodes(&self.pipelines[pipeline_id.get()].nodes))
                 }
                 _ => None,
             };
@@ -243,7 +246,7 @@ impl Compiler {
             ) {
                 result.push_str(&format!(
                     " \"{}\"",
-                    String::from_utf8_lossy(self.get_span_contents(NodeId(idx)))
+                    String::from_utf8_lossy(self.get_span_contents(NodeId::new(idx)))
                 ));
             }
 
@@ -255,7 +258,9 @@ impl Compiler {
             for error in &self.errors {
                 result.push_str(&format!(
                     "{:?} (NodeId {}): {}\n",
-                    error.severity, error.node_id.0, error.message
+                    error.severity,
+                    error.node_id.get(),
+                    error.message
                 ));
             }
         }
@@ -295,17 +300,17 @@ impl Compiler {
     }
 
     pub fn get_node(&self, node_id: NodeId) -> &AstNode {
-        &self.ast_nodes[node_id.0]
+        &self.ast_nodes[node_id.get()]
     }
 
     pub fn get_node_mut(&mut self, node_id: NodeId) -> &mut AstNode {
-        &mut self.ast_nodes[node_id.0]
+        &mut self.ast_nodes[node_id.get()]
     }
 
     pub fn push_node(&mut self, ast_node: AstNode) -> NodeId {
         self.ast_nodes.push(ast_node);
 
-        NodeId(self.ast_nodes.len() - 1)
+        NodeId::new(self.ast_nodes.len() - 1)
     }
 
     pub fn get_rollback_point(&self, token_pos: usize) -> RollbackPoint {
@@ -349,7 +354,7 @@ impl Compiler {
     pub fn get_span(&self, node_id: NodeId) -> Span {
         *self
             .spans
-            .get(node_id.0)
+            .get(node_id.get())
             .expect("internal error: missing span of node")
     }
 
@@ -383,115 +388,115 @@ impl Compiler {
 
     /// Get node as a block
     pub fn get_block(&self, node_id: NodeId) -> &Block {
-        let AstNode::Block(block_id) = self.ast_nodes[node_id.0] else {
+        let AstNode::Block(block_id) = self.ast_nodes[node_id.get()] else {
             unreachable!(
                 "internal error: expected block, got '{:?}'",
-                self.ast_nodes[node_id.0]
+                self.ast_nodes[node_id.get()]
             );
         };
-        &self.blocks[block_id.0]
+        &self.blocks[block_id.get()]
     }
 
     pub fn get_params(&self, node_id: NodeId) -> &Params {
-        let AstNode::Params(params_id) = self.ast_nodes[node_id.0] else {
+        let AstNode::Params(params_id) = self.ast_nodes[node_id.get()] else {
             unreachable!(
                 "internal error: expected params, got '{:?}'",
-                self.ast_nodes[node_id.0]
+                self.ast_nodes[node_id.get()]
             );
         };
-        &self.params[params_id.0]
+        &self.params[params_id.get()]
     }
 
     pub fn get_in_out_types(&self, node_id: NodeId) -> &InOutTypes {
-        let AstNode::InOutTypes(in_out_types_id) = self.ast_nodes[node_id.0] else {
+        let AstNode::InOutTypes(in_out_types_id) = self.ast_nodes[node_id.get()] else {
             unreachable!(
                 "internal error: expected in_out_types, got '{:?}'",
-                self.ast_nodes[node_id.0]
+                self.ast_nodes[node_id.get()]
             );
         };
-        &self.in_out_types[in_out_types_id.0]
+        &self.in_out_types[in_out_types_id.get()]
     }
 
     pub fn get_call(&self, node_id: NodeId) -> &Call {
-        let AstNode::Call(call_id) = self.ast_nodes[node_id.0] else {
+        let AstNode::Call(call_id) = self.ast_nodes[node_id.get()] else {
             unreachable!(
                 "internal error: expected call, got '{:?}'",
-                self.ast_nodes[node_id.0]
+                self.ast_nodes[node_id.get()]
             );
         };
-        &self.calls[call_id.0]
+        &self.calls[call_id.get()]
     }
 
     pub fn get_attributes(&self, node_id: NodeId) -> &Attributes {
-        let AstNode::Def { attributes, .. } = self.ast_nodes[node_id.0] else {
+        let AstNode::Def { attributes, .. } = self.ast_nodes[node_id.get()] else {
             unreachable!(
                 "internal error: expected def, got '{:?}'",
-                self.ast_nodes[node_id.0]
+                self.ast_nodes[node_id.get()]
             );
         };
         let Some(attributes) = attributes else {
             unreachable!("internal error: expected def attributes to exist");
         };
-        &self.attributes[attributes.0]
+        &self.attributes[attributes.get()]
     }
 
     pub fn get_attributes_opt(&self, node_id: NodeId) -> Option<&Attributes> {
-        let AstNode::Def { attributes, .. } = self.ast_nodes[node_id.0] else {
+        let AstNode::Def { attributes, .. } = self.ast_nodes[node_id.get()] else {
             unreachable!(
                 "internal error: expected def, got '{:?}'",
-                self.ast_nodes[node_id.0]
+                self.ast_nodes[node_id.get()]
             );
         };
-        attributes.map(|attribute_id| &self.attributes[attribute_id.0])
+        attributes.map(|attribute_id| &self.attributes[attribute_id.get()])
     }
 
     pub fn get_list(&self, node_id: NodeId) -> &List {
-        let AstNode::List(list_id) = self.ast_nodes[node_id.0] else {
+        let AstNode::List(list_id) = self.ast_nodes[node_id.get()] else {
             unreachable!(
                 "internal error: expected list, got '{:?}'",
-                self.ast_nodes[node_id.0]
+                self.ast_nodes[node_id.get()]
             );
         };
-        &self.lists[list_id.0]
+        &self.lists[list_id.get()]
     }
 
     pub fn get_table(&self, node_id: NodeId) -> &Table {
-        let AstNode::Table(table_id) = self.ast_nodes[node_id.0] else {
+        let AstNode::Table(table_id) = self.ast_nodes[node_id.get()] else {
             unreachable!(
                 "internal error: expected table, got '{:?}'",
-                self.ast_nodes[node_id.0]
+                self.ast_nodes[node_id.get()]
             );
         };
-        &self.tables[table_id.0]
+        &self.tables[table_id.get()]
     }
 
     pub fn get_record(&self, node_id: NodeId) -> &Record {
-        let AstNode::Record(record_id) = self.ast_nodes[node_id.0] else {
+        let AstNode::Record(record_id) = self.ast_nodes[node_id.get()] else {
             unreachable!(
                 "internal error: expected record, got '{:?}'",
-                self.ast_nodes[node_id.0]
+                self.ast_nodes[node_id.get()]
             );
         };
-        &self.records[record_id.0]
+        &self.records[record_id.get()]
     }
 
     pub fn get_match(&self, node_id: NodeId) -> &Match {
-        let AstNode::Match(match_id) = self.ast_nodes[node_id.0] else {
+        let AstNode::Match(match_id) = self.ast_nodes[node_id.get()] else {
             unreachable!(
                 "internal error: expected match, got '{:?}'",
-                self.ast_nodes[node_id.0]
+                self.ast_nodes[node_id.get()]
             );
         };
-        &self.matches[match_id.0]
+        &self.matches[match_id.get()]
     }
 
     pub fn get_type_args(&self, node_id: NodeId) -> &TypeArgs {
-        let AstNode::TypeArgs(type_args_id) = self.ast_nodes[node_id.0] else {
+        let AstNode::TypeArgs(type_args_id) = self.ast_nodes[node_id.get()] else {
             unreachable!(
                 "internal error: expected type args, got '{:?}'",
-                self.ast_nodes[node_id.0]
+                self.ast_nodes[node_id.get()]
             );
         };
-        &self.type_args[type_args_id.0]
+        &self.type_args[type_args_id.get()]
     }
 }

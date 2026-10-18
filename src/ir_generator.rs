@@ -1,6 +1,7 @@
 use crate::compiler::Compiler;
 use crate::errors::{Severity, SourceError};
-use crate::parser::{AstNode, NodeId};
+use crate::id::NodeId;
+use crate::parser::AstNode;
 use nu_protocol::ast::{Math, Operator};
 use nu_protocol::ir::{Instruction, IrBlock, Literal};
 use nu_protocol::{RegId, Span};
@@ -37,7 +38,7 @@ impl<'a> IrGenerator<'a> {
         if self.compiler.ast_nodes.is_empty() {
             return;
         }
-        let node_id = NodeId(self.compiler.ast_nodes.len() - 1);
+        let node_id = NodeId::new(self.compiler.ast_nodes.len() - 1);
         let Some(reg) = self.generate_node(node_id) else {
             return;
         };
@@ -81,7 +82,9 @@ impl<'a> IrGenerator<'a> {
             for error in &self.errors {
                 result.push_str(&format!(
                     "{:?} (NodeId {}): {}\n",
-                    error.severity, error.node_id.0, error.message
+                    error.severity,
+                    error.node_id.get(),
+                    error.message
                 ));
             }
         }
@@ -96,7 +99,7 @@ impl<'a> IrGenerator<'a> {
     }
 
     fn generate_node(&mut self, node_id: NodeId) -> Option<RegId> {
-        let ast_node = &self.compiler.ast_nodes[node_id.0];
+        let ast_node = &self.compiler.ast_nodes[node_id.get()];
         match ast_node {
             AstNode::Int => {
                 let next_reg = self.next_register();

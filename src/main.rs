@@ -4,7 +4,7 @@ use std::process::exit;
 
 use new_nu_parser::compiler::{Compiler, Spanned};
 use new_nu_parser::ir_generator::IrGenerator;
-use new_nu_parser::lexer::{LexError, lex};
+use new_nu_parser::lexer::{lex, LexError};
 use new_nu_parser::parser::Parser;
 use new_nu_parser::resolver::Resolver;
 use new_nu_parser::typechecker::Typechecker;
@@ -133,7 +133,7 @@ fn report_compile_errors(
     errors: &[SourceError],
     compiler: &Compiler,
 ) {
-    let error_span = compiler.spans[errors[0].node_id.0];
+    let error_span = compiler.spans[errors[0].node_id.get()];
     let mut builder = Report::build(
         ReportKind::Error,
         (fname, (error_span.start..error_span.start)),
@@ -141,7 +141,7 @@ fn report_compile_errors(
     .with_message(format!("{context} error"));
 
     for e in errors {
-        let error_span = compiler.spans[e.node_id.0];
+        let error_span = compiler.spans[e.node_id.get()];
         builder = builder.with_label(
             Label::new((fname, error_span.start..error_span.end))
                 .with_message(format!("Compiler err: {}", e.message)),

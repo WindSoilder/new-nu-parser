@@ -1,7 +1,9 @@
-use std::fmt::Display;
-
 use crate::compiler::{Compiler, RollbackPoint, Span};
 use crate::errors::{Severity, SourceError};
+use crate::id::{
+    AttributeId, BlockId, CallId, InOutTypesId, ListId, MatchId, NodeId, ParamsId, PipelineId,
+    RecordId, StringInterpId, TableId, TypeArgsId,
+};
 use crate::lexer::{Token, Tokens};
 
 use tracy_client::span;
@@ -10,53 +12,6 @@ pub struct Parser {
     pub compiler: Compiler,
     tokens: Tokens,
 }
-
-/// This is bottom-level ast node ids, every AstNode will be created
-/// and save into compilder.ast_nodes
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct NodeId(pub usize);
-
-impl Display for NodeId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct BlockId(pub usize);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ParamsId(pub usize);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct InOutTypesId(pub usize);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct CallId(pub usize);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct AttributeId(pub usize);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ListId(pub usize);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct TableId(pub usize);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct RecordId(pub usize);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct MatchId(pub usize);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct TypeArgsId(pub usize);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct PipelineId(pub usize);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct StringInterpId(pub usize);
 
 #[derive(Debug, Clone)]
 pub struct Block {
@@ -503,7 +458,7 @@ impl Parser {
     }
 
     fn get_span_end(&self, node_id: NodeId) -> usize {
-        self.compiler.spans[node_id.0].end
+        self.compiler.spans[node_id.get()].end
     }
 
     pub fn parse(mut self) -> Compiler {
@@ -609,7 +564,7 @@ impl Parser {
             .push(Pipeline::new(pipe_elements, nexts));
         let span_end = self.position();
         self.create_node(
-            AstNode::Pipeline(PipelineId(self.compiler.pipelines.len() - 1)),
+            AstNode::Pipeline(PipelineId::new(self.compiler.pipelines.len() - 1)),
             span_start,
             span_end,
         )
@@ -824,7 +779,7 @@ impl Parser {
                 _ => match bareword_context {
                     BarewordContext::String => {
                         let node_id = self.identifier();
-                        self.compiler.ast_nodes[node_id.0] = AstNode::String;
+                        self.compiler.ast_nodes[node_id.get()] = AstNode::String;
                         node_id
                     }
                     BarewordContext::Call => self.call(false),
@@ -924,7 +879,7 @@ impl Parser {
         self.compiler.string_interps.push(StringInterp::new(parts));
         let end = self.position();
         self.create_node(
-            AstNode::StringInterp(StringInterpId(self.compiler.string_interps.len() - 1)),
+            AstNode::StringInterp(StringInterpId::new(self.compiler.string_interps.len() - 1)),
             start,
             end,
         )
@@ -1003,7 +958,7 @@ impl Parser {
             .calls
             .push(Call::new(parts, has_caret, as_alias));
         self.create_node(
-            AstNode::Call(CallId(self.compiler.calls.len() - 1)),
+            AstNode::Call(CallId::new(self.compiler.calls.len() - 1)),
             span_start,
             span_end,
         )
@@ -1108,14 +1063,14 @@ impl Parser {
             let header = items.remove(0);
             self.compiler.tables.push(Table::new(header, items));
             self.create_node(
-                AstNode::Table(TableId(self.compiler.tables.len() - 1)),
+                AstNode::Table(TableId::new(self.compiler.tables.len() - 1)),
                 span_start,
                 span_end,
             )
         } else {
             self.compiler.lists.push(List::new(items));
             self.create_node(
-                AstNode::List(ListId(self.compiler.lists.len() - 1)),
+                AstNode::List(ListId::new(self.compiler.lists.len() - 1)),
                 span_start,
                 span_end,
             )
@@ -1192,7 +1147,7 @@ impl Parser {
         } else {
             self.compiler.records.push(Record::new(items));
             self.create_node(
-                AstNode::Record(RecordId(self.compiler.records.len() - 1)),
+                AstNode::Record(RecordId::new(self.compiler.records.len() - 1)),
                 span_start,
                 span_end,
             )
@@ -1245,8 +1200,8 @@ impl Parser {
 
     pub fn spanning(&mut self, from: NodeId, to: NodeId) -> (usize, usize) {
         (
-            self.compiler.spans[from.0].start,
-            self.compiler.spans[to.0].end,
+            self.compiler.spans[from.get()].start,
+            self.compiler.spans[to.get()].end,
         )
     }
 
@@ -1344,7 +1299,7 @@ impl Parser {
 
         self.compiler.matches.push(Match::new(target, match_arms));
         self.create_node(
-            AstNode::Match(MatchId(self.compiler.matches.len() - 1)),
+            AstNode::Match(MatchId::new(self.compiler.matches.len() - 1)),
             span_start,
             span_end,
         )
@@ -1532,7 +1487,7 @@ impl Parser {
                     None
                 };
 
-                let name_span = self.compiler.spans[name.0];
+                let name_span = self.compiler.spans[name.get()];
                 let param_span_end = default_val.map_or_else(
                     || ty.map_or(name_span.end, |ty_node| self.get_span_end(ty_node)),
                     |default_val| self.get_span_end(default_val),
@@ -1591,7 +1546,7 @@ impl Parser {
 
         self.compiler.params.push(Params::new(param_list));
         self.create_node(
-            AstNode::Params(ParamsId(self.compiler.params.len() - 1)),
+            AstNode::Params(ParamsId::new(self.compiler.params.len() - 1)),
             span_start,
             span_end,
         )
@@ -1622,7 +1577,7 @@ impl Parser {
 
         self.compiler.params.push(Params::new(param_list));
         self.create_node(
-            AstNode::Params(ParamsId(self.compiler.params.len() - 1)),
+            AstNode::Params(ParamsId::new(self.compiler.params.len() - 1)),
             span_start,
             span_end,
         )
@@ -1658,7 +1613,7 @@ impl Parser {
 
         self.compiler.type_args.push(TypeArgs::new(arg_list));
         self.create_node(
-            AstNode::TypeArgs(TypeArgsId(self.compiler.type_args.len() - 1)),
+            AstNode::TypeArgs(TypeArgsId::new(self.compiler.type_args.len() - 1)),
             span_start,
             span_end,
         )
@@ -1754,7 +1709,7 @@ impl Parser {
 
             self.compiler.in_out_types.push(InOutTypes::new(output));
             self.create_node(
-                AstNode::InOutTypes(InOutTypesId(self.compiler.in_out_types.len() - 1)),
+                AstNode::InOutTypes(InOutTypesId::new(self.compiler.in_out_types.len() - 1)),
                 span_start,
                 span_end,
             )
@@ -1763,7 +1718,7 @@ impl Parser {
             let span = self.compiler.get_span(ty);
             self.compiler.in_out_types.push(InOutTypes::new(vec![ty]));
             self.create_node(
-                AstNode::InOutTypes(InOutTypesId(self.compiler.in_out_types.len() - 1)),
+                AstNode::InOutTypes(InOutTypesId::new(self.compiler.in_out_types.len() - 1)),
                 span.start,
                 span.end,
             )
@@ -1966,7 +1921,7 @@ impl Parser {
         let span_end = self.position();
 
         self.create_node(
-            AstNode::Block(BlockId(self.compiler.blocks.len() - 1)),
+            AstNode::Block(BlockId::new(self.compiler.blocks.len() - 1)),
             span_start,
             span_end,
         )
@@ -2023,7 +1978,7 @@ impl Parser {
             if !has_attribute_parse_error {
                 if self.is_keyword(b"def") {
                     self.compiler.attributes.push(Attributes::new(attributes));
-                    let attributes_id = AttributeId(self.compiler.attributes.len() - 1);
+                    let attributes_id = AttributeId::new(self.compiler.attributes.len() - 1);
                     code_body.push(self.def_decl(Some(attributes_id), declaration_start));
                 } else {
                     let node_id =

@@ -1,4 +1,4 @@
-use crate::parser::NodeId;
+use crate::id::NodeId;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Severity {

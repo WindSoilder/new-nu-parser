@@ -2,7 +2,8 @@ use crate::protocol::{Command, Declaration};
 use crate::{
     compiler::Compiler,
     errors::{Severity, SourceError},
-    parser::{AstNode, NodeId, PipelineId},
+    id::{NodeId, PipelineId},
+    parser::AstNode,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -223,7 +224,9 @@ impl<'a> Resolver<'a> {
             for error in &self.errors {
                 result.push_str(&format!(
                     "{:?} (NodeId {}): {}\n",
-                    error.severity, error.node_id.0, error.message
+                    error.severity,
+                    error.node_id.get(),
+                    error.message
                 ));
             }
         }
@@ -234,14 +237,14 @@ impl<'a> Resolver<'a> {
     pub fn resolve(&mut self) {
         if !self.compiler.ast_nodes.is_empty() {
             let last = self.compiler.ast_nodes.len() - 1;
-            let last_node_id = NodeId(last);
+            let last_node_id = NodeId::new(last);
             self.resolve_node(last_node_id)
         }
     }
 
     pub fn resolve_node(&mut self, node_id: NodeId) {
         // TODO: Move node_id param to the end, same as in typechecker
-        match self.compiler.ast_nodes[node_id.0] {
+        match self.compiler.ast_nodes[node_id.get()] {
             AstNode::Variable => self.resolve_variable(node_id),
             AstNode::Call(_) => {
                 let parts = self.compiler.get_call(node_id).parts.clone();
@@ -299,7 +302,7 @@ impl<'a> Resolver<'a> {
                 let params = self.compiler.get_params(node_id);
                 for param in &params.nodes {
                     // TODO: handle default, and maybe FlagParam.
-                    match self.compiler.ast_nodes[param.0] {
+                    match self.compiler.ast_nodes[param.get()] {
                         AstNode::PosParam {
                             name,
                             ty,
@@ -451,7 +454,7 @@ impl<'a> Resolver<'a> {
     }
 
     pub fn resolve_pipeline(&mut self, pipeline_id: PipelineId) {
-        let pipeline = &self.compiler.pipelines[pipeline_id.0];
+        let pipeline = &self.compiler.pipelines[pipeline_id.get()];
 
         for exp in pipeline.get_expressions() {
             self.resolve_node(*exp)
@@ -506,15 +509,15 @@ impl<'a> Resolver<'a> {
         // Find out the potentially longest command name
         let max_name_parts = parts
             .iter()
-            .position(|part| matches!(self.compiler.ast_nodes[part.0], AstNode::Name))
+            .position(|part| matches!(self.compiler.ast_nodes[part.get()], AstNode::Name))
             .expect("call does not have any name")
             + 1;
 
         // Try to find the longest matching subcommand
-        let first_start = self.compiler.spans[parts[0].0].start;
+        let first_start = self.compiler.spans[parts[0].get()].start;
 
         for n in (0..max_name_parts).rev() {
-            let last_end = self.compiler.spans[parts[n].0].end;
+            let last_end = self.compiler.spans[parts[n].get()].end;
             let name = self
                 .compiler
                 .get_span_contents_manual(first_start, last_end);
