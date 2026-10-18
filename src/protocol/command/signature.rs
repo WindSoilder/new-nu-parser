@@ -50,13 +50,13 @@ impl Flag {
     ///
     /// Used so `--flag=$null` can either pass `null` through (when the type allows it) or omit
     /// the flag (when it does not). Switches (`arg: None`) never accept nothing — null means omit.
-    #[inline]
-    pub fn type_accepts_nothing(&self) -> bool {
-        match &self.arg {
-            Some(shape) => Type::Nothing.is_assignable_to(&shape.to_type()),
-            None => false,
-        }
-    }
+    // #[inline]
+    // pub fn type_accepts_nothing(&self) -> bool {
+    //     match &self.arg {
+    //         Some(shape) => Type::Nothing.is_assignable_to(&shape.to_type()),
+    //         None => false,
+    //     }
+    // }
 
     #[inline]
     pub fn new(long: impl Into<String>) -> Self {
@@ -413,13 +413,13 @@ impl Signature {
     /// - If the input was unspecified  [`Type::Any`] is returned.
     /// - If the signature has a single input type, it is returned.
     /// - If there are multiple input types, a [union](Type::union) of them is returned.
-    pub fn get_input_type(&self) -> Type {
-        match self.input_output_types.as_slice() {
-            [] => Type::Any,
-            [(input, _output)] => input.clone(),
-            multiple => Type::one_of(multiple.iter().map(|(input, _)| input.clone())),
-        }
-    }
+    // pub fn get_input_type(&self) -> Type {
+    //     match self.input_output_types.as_slice() {
+    //         [] => Type::Any,
+    //         [(input, _output)] => input.clone(),
+    //         multiple => Type::one_of(multiple.iter().map(|(input, _)| input.clone())),
+    //     }
+    // }
 
     /// Gets the output type from the signature based on `input`
     ///
@@ -430,21 +430,21 @@ impl Signature {
     /// - [Union](TypeSet::union) of all valid outputs are returned.
     /// - If there are no valid IO pairs for the given `input`, [`None`] is returned.
     // XXX: remove?
-    pub fn get_output_type(&self, input_type: Option<&Type>) -> Option<Type> {
-        if self.input_output_types.is_empty() {
-            return Some(Type::Any);
-        }
-        let input = input_type.unwrap_or(&Type::Any);
-        let mut it = self
-            .input_output_types
-            .iter()
-            .filter(|(in_ty, _out_ty)| input.is_assignable_to(in_ty))
-            .map(|(_, out)| out)
-            .peekable();
-
-        it.peek()?;
-        it.cloned().reduce(Type::union)
-    }
+    // pub fn get_output_type(&self, input_type: Option<&Type>) -> Option<Type> {
+    //     if self.input_output_types.is_empty() {
+    //         return Some(Type::Any);
+    //     }
+    //     let input = input_type.unwrap_or(&Type::Any);
+    //     let mut it = self
+    //         .input_output_types
+    //         .iter()
+    //         .filter(|(in_ty, _out_ty)| input.is_assignable_to(in_ty))
+    //         .map(|(_, out)| out)
+    //         .peekable();
+    //
+    //     it.peek()?;
+    //     it.cloned().reduce(Type::union)
+    // }
 
     /// Add a default help option to a signature
     pub fn add_help(mut self) -> Signature {

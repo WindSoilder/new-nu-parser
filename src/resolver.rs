@@ -118,7 +118,7 @@ pub struct Resolver<'a> {
     /// Mapping of type decl's name node -> TypeDecl
     pub type_resolution: HashMap<NodeId, TypeDeclId>,
     /// Declarations (commands, aliases, etc.), indexed by DeclId
-    pub decls: Vec<Box<dyn Command>>,
+    pub decls: Vec<Declaration>,
     /// Declaration nodes, indexed by DeclId
     pub decl_nodes: Vec<NodeId>,
     /// Mapping of decl's name node -> Command

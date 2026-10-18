@@ -2,9 +2,10 @@ mod declaration;
 mod def;
 mod prelude;
 mod signature;
-
+use crate::id::BlockId;
 use nu_protocol::DeprecationEntry;
 use prelude::*;
+
 
 pub trait Command: CommandClone {
     fn name(&self) -> &str;

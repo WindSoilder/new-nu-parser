@@ -76,6 +76,10 @@ pub enum Type {
     Ref(TypeDeclId),
     /// A type variable that must be solved
     Var(TypeVarId),
+    // ??? are they necessary?
+    Signature,
+    CellPath,
+    Keyword,
 }
 
 pub struct Types {
