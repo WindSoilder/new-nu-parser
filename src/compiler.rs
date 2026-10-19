@@ -1,13 +1,11 @@
 use crate::errors::SourceError;
-use crate::id::{NodeId, TypeId};
+use crate::id::{DeclId, NodeId, ScopeId, TypeDeclId, TypeId, VarId};
 use crate::parser::{
     AstNode, Attributes, Block, Call, InOutTypes, List, Match, Params, Pipeline, Record,
     StringInterp, Table, TypeArgs,
 };
 use crate::protocol::Declaration;
-use crate::resolver::{
-    DeclId, Frame, NameBindings, ScopeId, TypeDecl, TypeDeclId, VarId, Variable,
-};
+use crate::resolver::{Frame, NameBindings, TypeDecl, Variable};
 use crate::typechecker::Types;
 use std::collections::HashMap;
 

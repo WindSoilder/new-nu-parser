@@ -2,14 +2,10 @@ use crate::protocol::{Command, Declaration};
 use crate::{
     compiler::Compiler,
     errors::{Severity, SourceError},
-    id::{NodeId, PipelineId},
+    id::{DeclId, NodeId, PipelineId, ScopeId, TypeDeclId, VarId},
     parser::AstNode,
 };
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
-pub struct ScopeId(pub usize);
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum FrameType {
@@ -48,21 +44,12 @@ pub struct Variable {
     pub is_mutable: bool,
 }
 
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
-pub struct VarId(pub usize);
-
 #[derive(Debug, Clone)]
 pub enum TypeDecl {
     /// A type parameter. Holds the parameter name node
     Param(NodeId),
     // In the future, we may have type aliases, user-defined classes, etc.
 }
-
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TypeDeclId(pub usize);
-
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
-pub struct DeclId(pub usize);
 
 /// Fields extracted from Resolver
 pub struct NameBindings {
@@ -564,7 +551,7 @@ impl<'a> Resolver<'a> {
     /// Enter a new scope frame, e.g., a block or a closure
     pub fn enter_scope(&mut self, node_id: NodeId) {
         self.scope.push(Frame::new(FrameType::Scope, node_id));
-        self.scope_stack.push(ScopeId(self.scope.len() - 1));
+        self.scope_stack.push(ScopeId::new(self.scope.len() - 1));
     }
 
     /// Exit a scope frame, e.g., when reaching the end of a block or a closure
@@ -575,7 +562,7 @@ impl<'a> Resolver<'a> {
         match self
             .scope_stack
             .iter()
-            .rposition(|scope_id| self.scope[scope_id.0].frame_type == FrameType::Scope)
+            .rposition(|scope_id| self.scope[scope_id.get()].frame_type == FrameType::Scope)
         {
             None => panic!("internal error: no scope frame to exit"),
             Some(pos) => {
@@ -595,13 +582,13 @@ impl<'a> Resolver<'a> {
             .last()
             .expect("internal error: missing scope frame id");
 
-        self.scope[current_scope_id.0]
+        self.scope[current_scope_id.get()]
             .variables
             .insert(var_name, var_name_id);
 
         let var = Variable { is_mutable };
         self.variables.push(var);
-        let var_id = VarId(self.variables.len() - 1);
+        let var_id = VarId::new(self.variables.len() - 1);
 
         // let the definition of a variable also count as its use
         self.var_resolution.insert(var_name_id, var_id);
@@ -615,12 +602,12 @@ impl<'a> Resolver<'a> {
             .last()
             .expect("internal error: missing scope frame id");
 
-        self.scope[current_scope_id.0]
+        self.scope[current_scope_id.get()]
             .type_decls
             .insert(type_name, type_name_id);
 
         self.type_decls.push(type_decl);
-        let type_id = TypeDeclId(self.type_decls.len() - 1);
+        let type_id = TypeDeclId::new(self.type_decls.len() - 1);
 
         // let the definition of a type also count as its use
         self.type_resolution.insert(type_name_id, type_id);
@@ -637,21 +624,21 @@ impl<'a> Resolver<'a> {
             .last()
             .expect("internal error: missing scope frame id");
 
-        self.scope[current_scope_id.0]
+        self.scope[current_scope_id.get()]
             .decls
             .insert(decl_name, decl_name_id);
 
         self.decls.push(decl);
         self.decl_nodes.push(decl_node_id);
 
-        let decl_id = DeclId(self.decls.len() - 1);
+        let decl_id = DeclId::new(self.decls.len() - 1);
         // let the definition of a decl also count as its use
         self.decl_resolution.insert(decl_name_id, decl_id);
     }
 
     pub fn find_variable(&self, var_name: &[u8]) -> Option<NodeId> {
         for scope_id in self.scope_stack.iter().rev() {
-            if let Some(id) = self.scope[scope_id.0].variables.get(var_name) {
+            if let Some(id) = self.scope[scope_id.get()].variables.get(var_name) {
                 return Some(*id);
             }
         }
@@ -661,7 +648,7 @@ impl<'a> Resolver<'a> {
 
     pub fn find_type(&self, type_name: &[u8]) -> Option<NodeId> {
         for scope_id in self.scope_stack.iter().rev() {
-            if let Some(id) = self.scope[scope_id.0].type_decls.get(type_name) {
+            if let Some(id) = self.scope[scope_id.get()].type_decls.get(type_name) {
                 return Some(*id);
             }
         }
@@ -672,7 +659,7 @@ impl<'a> Resolver<'a> {
     pub fn find_decl(&self, var_name: &[u8]) -> Option<NodeId> {
         // TODO: Deduplicate code with find_variable()
         for scope_id in self.scope_stack.iter().rev() {
-            if let Some(id) = self.scope[scope_id.0].decls.get(var_name) {
+            if let Some(id) = self.scope[scope_id.get()].decls.get(var_name) {
                 return Some(*id);
             }
         }

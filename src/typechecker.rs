@@ -5,9 +5,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::compiler::Compiler;
 use crate::errors::{Severity, SourceError};
-use crate::id::{AllOfId, NodeId, OneOfId, RecordTypeId, TypeId, TypeVarId};
+use crate::id::{AllOfId, NodeId, OneOfId, RecordTypeId, TypeDeclId, TypeId, TypeVarId};
 use crate::parser::AstNode;
-use crate::resolver::{TypeDecl, TypeDeclId};
+use crate::resolver::TypeDecl;
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
@@ -264,7 +264,7 @@ impl<'a> Typechecker<'a> {
                         .var_resolution
                         .get(&name)
                         .expect("missing resolved variable");
-                    self.variable_types[var_id.0] = ty_id;
+                    self.variable_types[var_id.get()] = ty_id;
                     self.set_node_type_id(node_id, ty_id);
                 } else {
                     self.set_node_type_id(node_id, ANY_TYPE);
@@ -342,10 +342,10 @@ impl<'a> Typechecker<'a> {
                     .get(&variable)
                     .expect("missing resolved variable");
                 if let Type::List(type_id) = self.type_of(range) {
-                    self.variable_types[var_id.0] = type_id;
+                    self.variable_types[var_id.get()] = type_id;
                     self.set_node_type_id(variable, type_id);
                 } else {
-                    self.variable_types[var_id.0] = ANY_TYPE;
+                    self.variable_types[var_id.get()] = ANY_TYPE;
                     self.set_node_type_id(variable, ERROR_TYPE);
                     self.error("For loop range is not a list", range);
                 }
@@ -473,7 +473,7 @@ impl<'a> Typechecker<'a> {
                     .get(&node_id)
                     .expect("missing resolved variable");
 
-                self.variable_types[var_id.0]
+                self.variable_types[var_id.get()]
             }
             AstNode::If {
                 condition,
@@ -824,13 +824,13 @@ impl<'a> Typechecker<'a> {
             .expect("missing declared decl");
 
         if in_out_types.is_empty() {
-            self.decl_types[decl_id.0] = vec![InOutType {
+            self.decl_types[decl_id.get()] = vec![InOutType {
                 in_type: ANY_TYPE,
                 out_type: self.type_id_of(block),
             }];
         } else {
             // TODO check that block output type matches expected type
-            self.decl_types[decl_id.0] = in_out_types;
+            self.decl_types[decl_id.get()] = in_out_types;
         }
     }
 
@@ -846,19 +846,19 @@ impl<'a> Typechecker<'a> {
 
         let decl_id_old = self.compiler.decl_resolution.get(&old_name);
 
-        self.decl_types[decl_id_new.0] = decl_id_old.map_or(
+        self.decl_types[decl_id_new.get()] = decl_id_old.map_or(
             vec![InOutType {
                 in_type: ANY_TYPE,
                 out_type: BYTE_STREAM_TYPE,
             }],
-            |decl_id| self.decl_types[decl_id.0].clone(),
+            |decl_id| self.decl_types[decl_id.get()].clone(),
         );
     }
 
     fn typecheck_call(&mut self, parts: &[NodeId], node_id: NodeId) -> TypeId {
         if let Some(decl_id) = self.compiler.decl_resolution.get(&node_id) {
-            let num_name_parts = self.compiler.decls[decl_id.0].name.split(' ').count();
-            let decl_node_id = self.compiler.decl_nodes[decl_id.0];
+            let num_name_parts = self.compiler.decls[decl_id.get()].name.split(' ').count();
+            let decl_node_id = self.compiler.decl_nodes[decl_id.get()];
             let AstNode::Def {
                 type_params,
                 params,
@@ -919,7 +919,7 @@ impl<'a> Typechecker<'a> {
             }
 
             // TODO base this on pipeline input type
-            let out_types = self.decl_types[decl_id.0]
+            let out_types = self.decl_types[decl_id.get()]
                 .clone()
                 .iter()
                 .map(|io| self.subst(io.out_type, &type_substs))
@@ -960,7 +960,7 @@ impl<'a> Typechecker<'a> {
             .get(&variable_name)
             .expect("missing declared variable");
 
-        self.variable_types[var_id.0] = type_id;
+        self.variable_types[var_id.get()] = type_id;
         self.set_node_type_id(variable_name, type_id);
         self.set_node_type_id(node_id, NONE_TYPE);
     }
@@ -1586,7 +1586,7 @@ impl<'a> Typechecker<'a> {
                 fmt.push('>');
                 fmt
             }
-            Type::Ref(type_decl_id) => match self.compiler.type_decls[type_decl_id.0] {
+            Type::Ref(type_decl_id) => match self.compiler.type_decls[type_decl_id.get()] {
                 TypeDecl::Param(name_node) => {
                     String::from_utf8_lossy(self.compiler.get_span_contents(name_node)).to_string()
                 }

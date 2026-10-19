@@ -1,5 +1,5 @@
 pub use nu_protocol::{
-    BlockId, DeclId, FileId, Id, JobId, ModuleId, OverlayId, RegId, SpanId, VarId, VirtualPathId,
+    BlockId, FileId, Id, JobId, ModuleId, OverlayId, RegId, SpanId, VirtualPathId,
 };
 
 pub mod marker {
@@ -53,6 +53,12 @@ pub mod marker {
 
     #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct AllOf;
+
+    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct Scope;
+
+    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct TypeDecl;
 }
 
 /// Identifies a bottom-level AST node stored in `Compiler::ast_nodes`.
@@ -75,3 +81,8 @@ pub type TypeVarId = Id<marker::TypeVar>;
 pub type RecordTypeId = Id<marker::RecordType>;
 pub type OneOfId = Id<marker::OneOf>;
 pub type AllOfId = Id<marker::AllOf>;
+
+// IDs used by the resolver.
+pub use nu_protocol::{DeclId, VarId};
+pub type ScopeId = Id<marker::Scope>;
+pub type TypeDeclId = Id<marker::TypeDecl>;
