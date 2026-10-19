@@ -1,8 +1,6 @@
-use super::Command;
-
 #[derive(Clone)]
 pub struct Declaration {
-    name: String,
+    pub name: String,
 }
 
 impl Declaration {
@@ -20,4 +18,3 @@ impl Declaration {
 //         &self.name
 //     }
 // }
-

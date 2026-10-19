@@ -5,14 +5,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::compiler::Compiler;
 use crate::errors::{Severity, SourceError};
-use crate::id::NodeId;
+use crate::id::{AllOfId, NodeId, OneOfId, RecordTypeId, TypeId, TypeVarId};
 use crate::parser::AstNode;
 use crate::resolver::{TypeDecl, TypeDeclId};
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct TypeId(pub usize);
 
 /// Input/output type pair of a closure/command
 #[derive(Debug, Clone)]
@@ -26,18 +23,6 @@ pub struct TypeVar {
     lower_bound: TypeId,
     upper_bound: TypeId,
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct TypeVarId(pub usize);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RecordTypeId(pub usize);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct OneOfId(pub usize);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AllOfId(pub usize);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Type {
@@ -77,9 +62,7 @@ pub enum Type {
     /// A type variable that must be solved
     Var(TypeVarId),
     // ??? are they necessary?
-    Signature,
     CellPath,
-    Keyword,
 }
 
 pub struct Types {
@@ -91,26 +74,27 @@ pub struct Types {
 // The below are predefined simple types hardcoded into the Typechecker to avoid re-adding them all
 // the time:
 
-pub const UNKNOWN_TYPE: TypeId = TypeId(0);
-pub const FORBIDDEN_TYPE: TypeId = TypeId(1);
-pub const NONE_TYPE: TypeId = TypeId(2);
-pub const ANY_TYPE: TypeId = TypeId(3);
-pub const NUMBER_TYPE: TypeId = TypeId(4);
-pub const NOTHING_TYPE: TypeId = TypeId(5);
-pub const INT_TYPE: TypeId = TypeId(6);
-pub const FLOAT_TYPE: TypeId = TypeId(7);
-pub const BOOL_TYPE: TypeId = TypeId(8);
-pub const STRING_TYPE: TypeId = TypeId(9);
-pub const BINARY_TYPE: TypeId = TypeId(10);
-pub const CLOSURE_TYPE: TypeId = TypeId(11);
+pub const UNKNOWN_TYPE: TypeId = TypeId::new(0);
+pub const FORBIDDEN_TYPE: TypeId = TypeId::new(1);
+pub const NONE_TYPE: TypeId = TypeId::new(2);
+pub const ANY_TYPE: TypeId = TypeId::new(3);
+pub const NUMBER_TYPE: TypeId = TypeId::new(4);
+pub const NOTHING_TYPE: TypeId = TypeId::new(5);
+pub const INT_TYPE: TypeId = TypeId::new(6);
+pub const FLOAT_TYPE: TypeId = TypeId::new(7);
+pub const BOOL_TYPE: TypeId = TypeId::new(8);
+pub const STRING_TYPE: TypeId = TypeId::new(9);
+pub const BINARY_TYPE: TypeId = TypeId::new(10);
+pub const CLOSURE_TYPE: TypeId = TypeId::new(11);
+pub const CELLPATH_TYPE: TypeId = TypeId::new(12);
 
 // Common composite types can be hardcoded as well, like list<any>:
 
-pub const LIST_ANY_TYPE: TypeId = TypeId(12);
-pub const BYTE_STREAM_TYPE: TypeId = TypeId(13);
-pub const ERROR_TYPE: TypeId = TypeId(14);
-pub const TOP_TYPE: TypeId = TypeId(15);
-pub const BOTTOM_TYPE: TypeId = TypeId(16);
+pub const LIST_ANY_TYPE: TypeId = TypeId::new(13);
+pub const BYTE_STREAM_TYPE: TypeId = TypeId::new(14);
+pub const ERROR_TYPE: TypeId = TypeId::new(15);
+pub const TOP_TYPE: TypeId = TypeId::new(16);
+pub const BOTTOM_TYPE: TypeId = TypeId::new(17);
 
 pub struct Typechecker<'a> {
     /// Immutable reference to a compiler after the name binding pass
@@ -230,14 +214,14 @@ impl<'a> Typechecker<'a> {
             for i in 0..self.type_vars.len() {
                 let var = &self.type_vars[i];
                 let bound = var.lower_bound;
-                let cleaned = self.eliminate_type_vars(bound, TypeVarId(0), true);
-                self.types[bound.0] = self.types[cleaned.0];
+                let cleaned = self.eliminate_type_vars(bound, TypeVarId::ZERO, true);
+                self.types[bound.get()] = self.types[cleaned.get()];
             }
 
             for i in 0..self.types.len() {
                 if let Type::Var(var_id) = &self.types[i] {
-                    let bound = self.type_vars[var_id.0].lower_bound;
-                    self.types[i] = self.types[bound.0];
+                    let bound = self.type_vars[var_id.get()].lower_bound;
+                    self.types[i] = self.types[bound.get()];
                 }
             }
         }
@@ -251,7 +235,7 @@ impl<'a> Typechecker<'a> {
     /// Get type of node
     pub fn type_of(&self, node_id: NodeId) -> Type {
         let type_id = self.type_id_of(node_id);
-        self.types[type_id.0]
+        self.types[type_id.get()]
     }
 
     fn typecheck_node(&mut self, node_id: NodeId) {
@@ -453,7 +437,7 @@ impl<'a> Typechecker<'a> {
                 field_types.sort_by_cached_key(|(name, _)| self.compiler.get_span_contents(*name));
 
                 self.record_types.push(field_types);
-                self.push_type(Type::Record(RecordTypeId(self.record_types.len() - 1)))
+                self.push_type(Type::Record(RecordTypeId::new(self.record_types.len() - 1)))
             }
             AstNode::Pipeline(pipeline_id) => {
                 let pipeline = &self.compiler.pipelines[pipeline_id.get()];
@@ -612,18 +596,18 @@ impl<'a> Typechecker<'a> {
                     self.add_resolved_types(&mut output_types, &self.type_id_of(*result_node));
                 }
                 // the second is one of the possible types of the first
-                (Type::OneOf(id), _) if self.oneof_types[id.0].contains(&match_id) => {
+                (Type::OneOf(id), _) if self.oneof_types[id.get()].contains(&match_id) => {
                     self.add_resolved_types(&mut output_types, &self.type_id_of(*result_node));
                 }
                 // the first is one of the possible types of the second
-                (_, Type::OneOf(id)) if self.oneof_types[id.0].contains(&target_id) => {
+                (_, Type::OneOf(id)) if self.oneof_types[id.get()].contains(&target_id) => {
                     self.add_resolved_types(&mut output_types, &self.type_id_of(*result_node));
                 }
                 // the both the target and the one matched against are
                 // oneof<many types> then we need to check if they have any type in common
                 (Type::OneOf(id1), Type::OneOf(id2)) => {
-                    if self.oneof_types[id1.0]
-                        .intersection(&self.oneof_types[id2.0])
+                    if self.oneof_types[id1.get()]
+                        .intersection(&self.oneof_types[id2.get()])
                         .count()
                         != 0
                     {
@@ -678,7 +662,7 @@ impl<'a> Typechecker<'a> {
                 let lhs_ty = self.typecheck_expr(lhs, NUMBER_TYPE);
                 let rhs_ty = self.typecheck_expr(rhs, NUMBER_TYPE);
 
-                match (self.types[lhs_ty.0], self.types[rhs_ty.0]) {
+                match (self.types[lhs_ty.get()], self.types[rhs_ty.get()]) {
                     (Type::Int, Type::Int) => INT_TYPE,
                     (Type::Int, Type::Float) => FLOAT_TYPE,
                     (Type::Float, Type::Int) => FLOAT_TYPE,
@@ -693,7 +677,7 @@ impl<'a> Typechecker<'a> {
             }
             AstNode::In => {
                 let rhs_type = self.typecheck_expr(rhs, TOP_TYPE);
-                match self.types[rhs_type.0] {
+                match self.types[rhs_type.get()] {
                     Type::String => {
                         self.typecheck_expr(lhs, STRING_TYPE);
                         BOOL_TYPE
@@ -792,7 +776,7 @@ impl<'a> Typechecker<'a> {
     }
 
     fn numeric_op_type(&self, lhs: TypeId, rhs: TypeId) -> TypeId {
-        match (self.types[lhs.0], self.types[rhs.0]) {
+        match (self.types[lhs.get()], self.types[rhs.get()]) {
             (Type::Int, Type::Int) => INT_TYPE,
             (Type::Int, Type::Float) => FLOAT_TYPE,
             (Type::Float, Type::Int) => FLOAT_TYPE,
@@ -873,7 +857,7 @@ impl<'a> Typechecker<'a> {
 
     fn typecheck_call(&mut self, parts: &[NodeId], node_id: NodeId) -> TypeId {
         if let Some(decl_id) = self.compiler.decl_resolution.get(&node_id) {
-            let num_name_parts = self.compiler.decls[decl_id.0].name().split(' ').count();
+            let num_name_parts = self.compiler.decls[decl_id.0].name.split(' ').count();
             let decl_node_id = self.compiler.decl_nodes[decl_id.0];
             let AstNode::Def {
                 type_params,
@@ -1022,7 +1006,7 @@ impl<'a> Typechecker<'a> {
                 fields.sort_by_cached_key(|(name, _)| self.compiler.get_span_contents(*name));
 
                 self.record_types.push(fields);
-                self.push_type(Type::Record(RecordTypeId(self.record_types.len() - 1)))
+                self.push_type(Type::Record(RecordTypeId::new(self.record_types.len() - 1)))
             }
             _ => {
                 self.error(
@@ -1086,7 +1070,7 @@ impl<'a> Typechecker<'a> {
                             let oneof_types: HashSet<TypeId> =
                                 args.iter().map(|arg| self.type_id_of(*arg)).collect();
                             self.oneof_types.push(oneof_types);
-                            self.push_type(Type::OneOf(OneOfId(self.oneof_types.len() - 1)))
+                            self.push_type(Type::OneOf(OneOfId::new(self.oneof_types.len() - 1)))
                         } else if args.is_empty() {
                             self.error("oneof must have atleast one type argument", args_id);
                             self.push_type(Type::Unknown)
@@ -1161,7 +1145,7 @@ impl<'a> Typechecker<'a> {
             Type::List(ANY_TYPE) => LIST_ANY_TYPE,
             _ => {
                 self.types.push(ty);
-                TypeId(self.types.len() - 1)
+                TypeId::new(self.types.len() - 1)
             }
         }
     }
@@ -1171,7 +1155,7 @@ impl<'a> Typechecker<'a> {
         if substs.is_empty() {
             return ty_id;
         }
-        match self.types[ty_id.0] {
+        match self.types[ty_id.get()] {
             Type::Unknown
             | Type::Forbidden
             | Type::Error
@@ -1186,6 +1170,7 @@ impl<'a> Typechecker<'a> {
             | Type::Bool
             | Type::String
             | Type::Binary
+            | Type::CellPath
             | Type::Var(_) => ty_id,
             Type::Closure => todo!(),
             Type::List(elem_ty) => {
@@ -1205,30 +1190,30 @@ impl<'a> Typechecker<'a> {
                 }
             }
             Type::Record(record_type_id) => {
-                let mut fields = self.record_types[record_type_id.0].clone();
+                let mut fields = self.record_types[record_type_id.get()].clone();
                 for (_, ty) in fields.iter_mut() {
                     *ty = self.subst(*ty, substs);
                 }
                 self.record_types.push(fields);
-                self.push_type(Type::Record(RecordTypeId(self.record_types.len() - 1)))
+                self.push_type(Type::Record(RecordTypeId::new(self.record_types.len() - 1)))
             }
             Type::OneOf(id) => {
-                let orig_types = self.oneof_types[id.0].clone();
+                let orig_types = self.oneof_types[id.get()].clone();
                 let mut new_types = HashSet::new();
                 for ty in orig_types.iter() {
                     new_types.insert(self.subst(*ty, substs));
                 }
                 self.oneof_types.push(new_types);
-                self.push_type(Type::OneOf(OneOfId(self.oneof_types.len() - 1)))
+                self.push_type(Type::OneOf(OneOfId::new(self.oneof_types.len() - 1)))
             }
             Type::AllOf(id) => {
-                let orig_types = self.allof_types[id.0].clone();
+                let orig_types = self.allof_types[id.get()].clone();
                 let mut new_types = HashSet::new();
                 for ty in orig_types.iter() {
                     new_types.insert(self.subst(*ty, substs));
                 }
                 self.allof_types.push(new_types);
-                self.push_type(Type::AllOf(AllOfId(self.allof_types.len() - 1)))
+                self.push_type(Type::AllOf(AllOfId::new(self.allof_types.len() - 1)))
             }
             Type::Ref(type_decl_id) => {
                 if let Some(var) = substs.get(&type_decl_id) {
@@ -1242,7 +1227,7 @@ impl<'a> Typechecker<'a> {
 
     /// Given the type for a list, extract the type of its elements
     fn extract_elem_type(&mut self, list_ty: TypeId) -> Option<TypeId> {
-        match self.types[list_ty.0] {
+        match self.types[list_ty.get()] {
             Type::List(elem) => Some(elem),
             Type::Top => Some(TOP_TYPE),
             Type::Bottom => Some(BOTTOM_TYPE),
@@ -1261,7 +1246,7 @@ impl<'a> Typechecker<'a> {
             lower_bound,
             upper_bound,
         });
-        TypeVarId(self.type_vars.len() - 1)
+        TypeVarId::new(self.type_vars.len() - 1)
     }
 
     /// Check if `sub` is a subtype of `supe`
@@ -1272,7 +1257,7 @@ impl<'a> Typechecker<'a> {
         if sub_id == supe_id {
             return true;
         }
-        match (self.types[sub_id.0], self.types[supe_id.0]) {
+        match (self.types[sub_id.get()], self.types[supe_id.get()]) {
             (_, Type::Top | Type::Any | Type::Unknown) => true,
             (Type::Bottom | Type::Any | Type::Unknown, _) => true,
             (Type::Int | Type::Float | Type::Number, Type::Number) => true,
@@ -1280,8 +1265,8 @@ impl<'a> Typechecker<'a> {
                 self.constrain_subtype(inner_sub, inner_supe)
             }
             (Type::Record(sub_rec_id), Type::Record(supe_rec_id)) => {
-                let sub_fields = self.record_types[sub_rec_id.0].clone();
-                let supe_fields = self.record_types[supe_rec_id.0].clone();
+                let sub_fields = self.record_types[sub_rec_id.get()].clone();
+                let supe_fields = self.record_types[supe_rec_id.get()].clone();
 
                 let mut i = 0;
                 let mut j = 0;
@@ -1311,8 +1296,8 @@ impl<'a> Typechecker<'a> {
                 true
             }
             (Type::Var(var_id), _) => {
-                let lb = self.type_vars[var_id.0].lower_bound;
-                let ub = self.type_vars[var_id.0].upper_bound;
+                let lb = self.type_vars[var_id.get()].lower_bound;
+                let ub = self.type_vars[var_id.get()].upper_bound;
                 let mut types = HashSet::new();
                 types.insert(ub);
                 types.insert(supe_id);
@@ -1323,7 +1308,7 @@ impl<'a> Typechecker<'a> {
                 if self.constrain_subtype(lb, new_ub) {
                     let var = self
                         .type_vars
-                        .get_mut(var_id.0)
+                        .get_mut(var_id.get())
                         .expect("type variable must exist");
                     var.upper_bound = new_ub;
                     true
@@ -1332,8 +1317,8 @@ impl<'a> Typechecker<'a> {
                 }
             }
             (_, Type::Var(var_id)) => {
-                let lb = self.type_vars[var_id.0].lower_bound;
-                let ub = self.type_vars[var_id.0].upper_bound;
+                let lb = self.type_vars[var_id.get()].lower_bound;
+                let ub = self.type_vars[var_id.get()].upper_bound;
                 let mut types = HashSet::new();
                 types.insert(lb);
                 types.insert(sub_id);
@@ -1344,7 +1329,7 @@ impl<'a> Typechecker<'a> {
                 if self.constrain_subtype(new_lb, ub) {
                     let var = self
                         .type_vars
-                        .get_mut(var_id.0)
+                        .get_mut(var_id.get())
                         .expect("type variable must exist");
                     var.lower_bound = new_lb;
                     true
@@ -1352,13 +1337,13 @@ impl<'a> Typechecker<'a> {
                     false
                 }
             }
-            (Type::OneOf(id), _) => self.oneof_types[id.0]
+            (Type::OneOf(id), _) => self.oneof_types[id.get()]
                 .clone()
                 .iter()
                 .all(|ty| self.constrain_subtype(*ty, supe_id)),
             (_, Type::OneOf(id)) => {
                 // TODO: actually add constraints?
-                self.oneof_types[id.0]
+                self.oneof_types[id.get()]
                     .clone()
                     .iter()
                     .any(|ty| self.is_subtype(sub_id, *ty))
@@ -1374,7 +1359,7 @@ impl<'a> Typechecker<'a> {
         if sub == supe {
             return true;
         }
-        match (self.types[sub.0], self.types[supe.0]) {
+        match (self.types[sub.get()], self.types[supe.get()]) {
             (_, Type::Top | Type::Any | Type::Unknown) => true,
             (Type::Bottom | Type::Any | Type::Unknown, _) => true,
             (Type::Int | Type::Float | Type::Number, Type::Number) => true,
@@ -1382,8 +1367,8 @@ impl<'a> Typechecker<'a> {
                 self.is_subtype(inner_sub, inner_supe)
             }
             (Type::Record(sub_rec_id), Type::Record(supe_rec_id)) => {
-                let sub_fields = self.record_types[sub_rec_id.0].clone();
-                let supe_fields = self.record_types[supe_rec_id.0].clone();
+                let sub_fields = self.record_types[sub_rec_id.get()].clone();
+                let supe_fields = self.record_types[supe_rec_id.get()].clone();
 
                 let mut i = 0;
                 let mut j = 0;
@@ -1413,18 +1398,18 @@ impl<'a> Typechecker<'a> {
                 true
             }
             (Type::Var(var_id), _) => {
-                let var = &self.type_vars[var_id.0];
+                let var = &self.type_vars[var_id.get()];
                 self.is_subtype(var.upper_bound, supe)
             }
             (_, Type::Var(var_id)) => {
-                let var = &self.type_vars[var_id.0];
+                let var = &self.type_vars[var_id.get()];
                 self.is_subtype(sub, var.lower_bound)
             }
-            (Type::OneOf(id), _) => self.oneof_types[id.0]
+            (Type::OneOf(id), _) => self.oneof_types[id.get()]
                 .clone()
                 .iter()
                 .all(|ty| self.is_subtype(*ty, supe)),
-            (_, Type::OneOf(id)) => self.oneof_types[id.0]
+            (_, Type::OneOf(id)) => self.oneof_types[id.get()]
                 .iter()
                 .any(|ty| self.is_subtype(sub, *ty)),
             (sub, supe) => sub == supe,
@@ -1440,7 +1425,7 @@ impl<'a> Typechecker<'a> {
         max_var: TypeVarId,
         use_lower: bool,
     ) -> TypeId {
-        match self.types[ty_id.0] {
+        match self.types[ty_id.get()] {
             Type::Unknown
             | Type::Forbidden
             | Type::Error
@@ -1455,6 +1440,7 @@ impl<'a> Typechecker<'a> {
             | Type::Bool
             | Type::String
             | Type::Binary
+            | Type::CellPath
             | Type::Ref(_) => ty_id,
             Type::Closure => ty_id,
             Type::List(inner_ty) => {
@@ -1475,7 +1461,7 @@ impl<'a> Typechecker<'a> {
             }
             Type::Record(record_type_id) => {
                 let mut changed = false;
-                let mut fields = self.record_types[record_type_id.0].clone();
+                let mut fields = self.record_types[record_type_id.get()].clone();
                 for (_, ty) in fields.iter_mut() {
                     let res = self.eliminate_type_vars(*ty, max_var, use_lower);
                     if res != *ty {
@@ -1485,34 +1471,34 @@ impl<'a> Typechecker<'a> {
                 }
                 if changed {
                     self.record_types.push(fields);
-                    self.push_type(Type::Record(RecordTypeId(self.record_types.len() - 1)))
+                    self.push_type(Type::Record(RecordTypeId::new(self.record_types.len() - 1)))
                 } else {
                     ty_id
                 }
             }
             Type::OneOf(id) => {
-                let orig_types = self.oneof_types[id.0].clone();
+                let orig_types = self.oneof_types[id.get()].clone();
                 let mut new_types = HashSet::new();
                 for ty in orig_types.iter() {
                     new_types.insert(self.eliminate_type_vars(*ty, max_var, use_lower));
                 }
                 self.oneof_types.push(new_types);
-                self.push_type(Type::OneOf(OneOfId(self.oneof_types.len() - 1)))
+                self.push_type(Type::OneOf(OneOfId::new(self.oneof_types.len() - 1)))
             }
             Type::AllOf(id) => {
-                let orig_types = self.allof_types[id.0].clone();
+                let orig_types = self.allof_types[id.get()].clone();
                 let mut new_types = HashSet::new();
                 for ty in orig_types.iter() {
                     new_types.insert(self.eliminate_type_vars(*ty, max_var, use_lower));
                 }
                 self.allof_types.push(new_types);
-                self.push_type(Type::AllOf(AllOfId(self.allof_types.len() - 1)))
+                self.push_type(Type::AllOf(AllOfId::new(self.allof_types.len() - 1)))
             }
             Type::Var(var_id) => {
-                if var_id.0 < max_var.0 {
+                if var_id.get() < max_var.get() {
                     ty_id
                 } else {
-                    let var = &self.type_vars[var_id.0];
+                    let var = &self.type_vars[var_id.get()];
                     let repl = if use_lower {
                         var.lower_bound
                     } else {
@@ -1525,7 +1511,7 @@ impl<'a> Typechecker<'a> {
     }
 
     fn type_to_string(&self, type_id: TypeId) -> String {
-        let ty = &self.types[type_id.0];
+        let ty = &self.types[type_id.get()];
 
         match ty {
             Type::Unknown => "unknown".to_string(),
@@ -1543,6 +1529,7 @@ impl<'a> Typechecker<'a> {
             Type::Binary => "binary".to_string(),
             Type::String => "string".to_string(),
             Type::Closure => "closure".to_string(),
+            Type::CellPath => "cell-path".to_string(),
             Type::List(subtype_id) => {
                 format!("list<{}>", self.type_to_string(*subtype_id))
             }
@@ -1551,7 +1538,7 @@ impl<'a> Typechecker<'a> {
             }
             Type::Record(id) => {
                 let mut fmt = "record<".to_string();
-                let types = &self.record_types[id.0];
+                let types = &self.record_types[id.get()];
                 for (name, ty) in types {
                     fmt += &String::from_utf8_lossy(self.compiler.get_span_contents(*name));
                     fmt += ": ";
@@ -1567,7 +1554,7 @@ impl<'a> Typechecker<'a> {
             }
             Type::OneOf(id) => {
                 let mut fmt = "oneof<".to_string();
-                let mut types: Vec<_> = self.oneof_types[id.0]
+                let mut types: Vec<_> = self.oneof_types[id.get()]
                     .iter()
                     .map(|ty| self.type_to_string(*ty) + ", ")
                     .collect();
@@ -1584,7 +1571,7 @@ impl<'a> Typechecker<'a> {
             }
             Type::AllOf(id) => {
                 let mut fmt = "allof<".to_string();
-                let mut types: Vec<_> = self.allof_types[id.0]
+                let mut types: Vec<_> = self.allof_types[id.get()]
                     .iter()
                     .map(|ty| self.type_to_string(*ty) + ", ")
                     .collect();
@@ -1605,11 +1592,11 @@ impl<'a> Typechecker<'a> {
                 }
             },
             Type::Var(type_var_id) => {
-                let var = &self.type_vars[type_var_id.0];
+                let var = &self.type_vars[type_var_id.get()];
                 format!(
                     "{} <: '{} <: {}",
                     self.type_to_string(var.lower_bound),
-                    type_var_id.0,
+                    type_var_id.get(),
                     self.type_to_string(var.upper_bound)
                 )
             }
@@ -1626,8 +1613,8 @@ impl<'a> Typechecker<'a> {
             (Type::Any, _) => true,
             (_, Type::Any) => true,
             (Type::Record(lhs_id), Type::Record(rhs_id)) => {
-                let lhs_fields = &self.record_types[lhs_id.0];
-                let rhs_fields = &self.record_types[rhs_id.0];
+                let lhs_fields = &self.record_types[lhs_id.get()];
+                let rhs_fields = &self.record_types[rhs_id.get()];
 
                 let mut l = 0;
                 let mut r = 0;
@@ -1644,8 +1631,10 @@ impl<'a> Typechecker<'a> {
                             r += 1;
                         }
                         Ordering::Equal => {
-                            if !self.is_type_compatible(self.types[lhs_ty.0], self.types[rhs_ty.0])
-                            {
+                            if !self.is_type_compatible(
+                                self.types[lhs_ty.get()],
+                                self.types[rhs_ty.get()],
+                            ) {
                                 return false;
                             }
                             l += 1;
@@ -1681,8 +1670,8 @@ impl<'a> Typechecker<'a> {
     }
 
     fn add_resolved_types(&mut self, types: &mut HashSet<TypeId>, ty: &TypeId) {
-        if let Type::OneOf(id) = self.types[ty.0] {
-            types.extend(self.oneof_types[id.0].clone());
+        if let Type::OneOf(id) = self.types[ty.get()] {
+            types.extend(self.oneof_types[id.get()].clone());
         } else {
             types.insert(*ty);
         }
@@ -1693,11 +1682,11 @@ impl<'a> Typechecker<'a> {
     fn create_oneof(&mut self, types: HashSet<TypeId>) -> TypeId {
         let mut flattened = HashSet::new();
         for ty_id in types {
-            match self.types[ty_id.0] {
+            match self.types[ty_id.get()] {
                 Type::Top | Type::Any | Type::Unknown => return ty_id,
                 Type::Bottom => {}
                 Type::OneOf(id) => {
-                    flattened.extend(&self.oneof_types[id.0]);
+                    flattened.extend(&self.oneof_types[id.get()]);
                 }
                 _ => {
                     flattened.insert(ty_id);
@@ -1717,7 +1706,7 @@ impl<'a> Typechecker<'a> {
                 continue;
             }
 
-            let ty = self.types[ty_id.0];
+            let ty = self.types[ty_id.get()];
 
             if ty == Type::Int && simple_types.contains(&FLOAT_TYPE) {
                 simple_types.remove(&FLOAT_TYPE);
@@ -1743,7 +1732,7 @@ impl<'a> Typechecker<'a> {
                     list_elems.insert(elem_ty);
                 }
                 Type::Record(rec_ty_id) => {
-                    let new_fields = &self.record_types[rec_ty_id.0];
+                    let new_fields = &self.record_types[rec_ty_id.get()];
                     for (name_node, ty) in new_fields.iter() {
                         let name = self.compiler.get_span_contents(*name_node);
                         if let Some((_, types)) = record_fields.get_mut(&name) {
@@ -1790,7 +1779,7 @@ impl<'a> Typechecker<'a> {
             }
             fields.sort_by_cached_key(|(name_node, _)| self.compiler.get_span_contents(*name_node));
 
-            let rec_ty_id = RecordTypeId(self.record_types.len());
+            let rec_ty_id = RecordTypeId::new(self.record_types.len());
             self.record_types.push(fields);
             simple_types.insert(self.push_type(Type::Record(rec_ty_id)));
         }
@@ -1802,7 +1791,7 @@ impl<'a> Typechecker<'a> {
                 .expect("should have exactly 1 element")
         } else {
             self.oneof_types.push(simple_types);
-            self.push_type(Type::OneOf(OneOfId(self.oneof_types.len() - 1)))
+            self.push_type(Type::OneOf(OneOfId::new(self.oneof_types.len() - 1)))
         }
     }
 
@@ -1811,9 +1800,9 @@ impl<'a> Typechecker<'a> {
     fn create_allof(&mut self, types: HashSet<TypeId>) -> TypeId {
         let mut flattened = HashSet::new();
         for ty_id in types {
-            match self.types[ty_id.0] {
+            match self.types[ty_id.get()] {
                 Type::AllOf(id) => {
-                    flattened.extend(&self.allof_types[id.0]);
+                    flattened.extend(&self.allof_types[id.get()]);
                 }
                 _ => {
                     flattened.insert(ty_id);
@@ -1832,7 +1821,7 @@ impl<'a> Typechecker<'a> {
         let mut record_fields = HashMap::<&[u8], (NodeId, HashSet<TypeId>)>::new();
         let mut oneof_ids = Vec::new();
         for ty_id in flattened {
-            let ty = self.types[ty_id.0];
+            let ty = self.types[ty_id.get()];
 
             match ty {
                 Type::Any => return ANY_TYPE,
@@ -1855,7 +1844,7 @@ impl<'a> Typechecker<'a> {
                     if simple_type.is_some() || !list_elems.is_empty() {
                         return BOTTOM_TYPE;
                     }
-                    let new_fields = &self.record_types[rec_ty_id.0];
+                    let new_fields = &self.record_types[rec_ty_id.get()];
                     for (name_node, ty) in new_fields.iter() {
                         let name = self.compiler.get_span_contents(*name_node);
                         if let Some((_, types)) = record_fields.get_mut(&name) {
@@ -1906,7 +1895,7 @@ impl<'a> Typechecker<'a> {
             }
             fields.sort_by_cached_key(|(name_node, _)| self.compiler.get_span_contents(*name_node));
 
-            let rec_ty_id = RecordTypeId(self.record_types.len());
+            let rec_ty_id = RecordTypeId::new(self.record_types.len());
             self.record_types.push(fields);
             res.insert(self.push_type(Type::Record(rec_ty_id)));
         }
@@ -1917,7 +1906,7 @@ impl<'a> Typechecker<'a> {
             *res.iter().next().expect("should have exactly 1 element")
         } else {
             self.allof_types.push(res);
-            self.push_type(Type::AllOf(AllOfId(self.allof_types.len() - 1)))
+            self.push_type(Type::AllOf(AllOfId::new(self.allof_types.len() - 1)))
         };
 
         if oneof_ids.is_empty() {
@@ -1930,7 +1919,7 @@ impl<'a> Typechecker<'a> {
 
         for oneof_id in oneof_ids {
             let mut new_inters = vec![];
-            let types = &self.oneof_types[oneof_id.0];
+            let types = &self.oneof_types[oneof_id.get()];
             for ty in types.iter() {
                 for mut inter in inters.clone() {
                     inter.insert(*ty);

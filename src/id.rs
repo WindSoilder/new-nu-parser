@@ -38,6 +38,21 @@ pub mod marker {
 
     #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct StringInterp;
+
+    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct Type;
+
+    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct TypeVar;
+
+    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct RecordType;
+
+    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct OneOf;
+
+    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct AllOf;
 }
 
 /// Identifies a bottom-level AST node stored in `Compiler::ast_nodes`.
@@ -53,3 +68,10 @@ pub type MatchId = Id<marker::Match>;
 pub type TypeArgsId = Id<marker::TypeArgs>;
 pub type PipelineId = Id<marker::Pipeline>;
 pub type StringInterpId = Id<marker::StringInterp>;
+
+// IDs used by the typechecker.
+pub type TypeId = Id<marker::Type>;
+pub type TypeVarId = Id<marker::TypeVar>;
+pub type RecordTypeId = Id<marker::RecordType>;
+pub type OneOfId = Id<marker::OneOf>;
+pub type AllOfId = Id<marker::AllOf>;

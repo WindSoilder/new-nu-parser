@@ -17,7 +17,7 @@ impl Command for Def {
         Signature::build("def")
             .input_output_types(vec![(Type::Nothing, Type::Nothing)])
             .required("def_name", Type::String, "The command name to define.")
-            .required("params", Type::Signature, "The command parameters, a comma-separated list inside [].")
+            .required("params", Type::Any, "The command parameters, a comma-separated list inside [].")
             .required("block", Type::Closure, "The body of the command, a list of instructions inside {}.")
             .switch("env", "Keep the environment defined inside the command.", None)
             .switch("wrapped", "Treat unknown flags and arguments as strings (requires ...rest-like parameter in signature).", None)

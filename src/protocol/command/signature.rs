@@ -820,21 +820,7 @@ impl Signature {
     ///
     /// This does _not_ include the `...rest` parameter, even if it's present.
     pub fn num_positionals(&self) -> usize {
-        let mut total = self.required_positional.len() + self.optional_positional.len();
-
-        for positional in &self.required_positional {
-            if let Type::Keyword(..) = positional.shape {
-                // Keywords have a required argument, so account for that
-                total += 1;
-            }
-        }
-        for positional in &self.optional_positional {
-            if let Type::Keyword(..) = positional.shape {
-                // Keywords have a required argument, so account for that
-                total += 1;
-            }
-        }
-        total
+        self.required_positional.len() + self.optional_positional.len()
     }
 
     /// Find the matching long flag
@@ -939,21 +925,10 @@ impl Command for Predeclaration {
 }
 
 fn get_positional_short_name(arg: &PositionalArg, is_required: bool) -> String {
-    match &arg.shape {
-        Type::Keyword(name, ..) => {
-            if is_required {
-                format!("{} <{}> ", String::from_utf8_lossy(name), arg.name)
-            } else {
-                format!("({} <{}>) ", String::from_utf8_lossy(name), arg.name)
-            }
-        }
-        _ => {
-            if is_required {
-                format!("<{}> ", arg.name)
-            } else {
-                format!("({}) ", arg.name)
-            }
-        }
+    if is_required {
+        format!("<{}> ", arg.name)
+    } else {
+        format!("({}) ", arg.name)
     }
 }
 

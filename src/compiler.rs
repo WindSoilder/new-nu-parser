@@ -1,14 +1,14 @@
 use crate::errors::SourceError;
-use crate::id::NodeId;
+use crate::id::{NodeId, TypeId};
 use crate::parser::{
     AstNode, Attributes, Block, Call, InOutTypes, List, Match, Params, Pipeline, Record,
     StringInterp, Table, TypeArgs,
 };
-use crate::protocol::Command;
+use crate::protocol::Declaration;
 use crate::resolver::{
     DeclId, Frame, NameBindings, ScopeId, TypeDecl, TypeDeclId, VarId, Variable,
 };
-use crate::typechecker::{TypeId, Types};
+use crate::typechecker::Types;
 use std::collections::HashMap;
 
 pub struct RollbackPoint {
@@ -88,7 +88,7 @@ pub struct Compiler {
     /// Mapping of type decl's name node -> TypeDecl
     pub type_resolution: HashMap<NodeId, TypeDeclId>,
     /// Declarations (commands, aliases, externs), indexed by DeclId
-    pub decls: Vec<Box<dyn Command>>,
+    pub decls: Vec<Declaration>,
     /// Declaration NodeIds, indexed by DeclId
     pub decl_nodes: Vec<NodeId>,
     /// Mapping of decl's name node -> Command

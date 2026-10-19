@@ -72,7 +72,7 @@ pub struct NameBindings {
     pub var_resolution: HashMap<NodeId, VarId>,
     pub type_decls: Vec<TypeDecl>,
     pub type_resolution: HashMap<NodeId, TypeDeclId>,
-    pub decls: Vec<Box<dyn Command>>,
+    pub decls: Vec<Declaration>,
     pub decl_nodes: Vec<NodeId>,
     pub decl_resolution: HashMap<NodeId, DeclId>,
     pub errors: Vec<SourceError>,
@@ -641,7 +641,7 @@ impl<'a> Resolver<'a> {
             .decls
             .insert(decl_name, decl_name_id);
 
-        self.decls.push(Box::new(decl));
+        self.decls.push(decl);
         self.decl_nodes.push(decl_node_id);
 
         let decl_id = DeclId(self.decls.len() - 1);
