@@ -4,7 +4,7 @@ use crate::parser::{
     AstNode, Attributes, Block, Call, InOutTypes, List, Match, Params, Pipeline, Record,
     StringInterp, Table, TypeArgs,
 };
-use crate::protocol::Declaration;
+use crate::protocol::{Command, Declaration};
 use crate::resolver::{Frame, NameBindings, TypeDecl, Variable};
 use crate::typechecker::Types;
 use std::collections::HashMap;
@@ -91,6 +91,8 @@ pub struct Compiler {
     pub decl_nodes: Vec<NodeId>,
     /// Mapping of decl's name node -> Command
     pub decl_resolution: HashMap<NodeId, DeclId>,
+    /// Mapping of builtin's name -> Command
+    pub builtins: Vec<Box<dyn Command>>,
 
     // Definitions:
     // indexed by FunId
@@ -111,6 +113,7 @@ impl Default for Compiler {
 
 impl Compiler {
     pub fn new() -> Self {
+        let builtins = Self::get_builtins();
         Self {
             spans: vec![],
             ast_nodes: vec![],
@@ -139,6 +142,7 @@ impl Compiler {
             decls: vec![],
             decl_nodes: vec![],
             decl_resolution: HashMap::new(),
+            builtins,
 
             // variables: vec![],
             // functions: vec![],
@@ -496,5 +500,12 @@ impl Compiler {
             );
         };
         &self.type_args[type_args_id.get()]
+    }
+
+    fn get_builtins() -> Vec<Box<dyn Command>> {
+        use crate::protocol::command::{Def, Use};
+        let builtins: Vec<Box<dyn Command>> = vec![Box::new(Def), Box::new(Use)];
+
+        builtins
     }
 }

@@ -448,6 +448,7 @@ impl<'a> Resolver<'a> {
         }
     }
 
+    // Note that the unbound_node_id means `type` unbound.
     pub fn resolve_variable(&mut self, unbound_node_id: NodeId) {
         let var_name = trim_var_name(self.compiler.get_span_contents(unbound_node_id));
 

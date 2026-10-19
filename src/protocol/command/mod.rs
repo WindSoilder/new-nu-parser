@@ -1,10 +1,14 @@
 mod declaration;
 mod def;
+mod use_;
 mod prelude;
 mod signature;
 use crate::id::BlockId;
 use nu_protocol::DeprecationEntry;
 use prelude::*;
+
+pub use def::Def;
+pub use use_::Use;
 
 
 pub trait Command: CommandClone {

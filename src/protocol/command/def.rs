@@ -1,9 +1,9 @@
+use super::Command;
 use super::prelude::*;
 use crate::typechecker::Type;
-use super::Command;
 
-#[derive(Clone)]
-struct Def;
+#[derive(Clone, Copy)]
+pub struct Def;
 impl Command for Def {
     fn name(&self) -> &str {
         "def"
