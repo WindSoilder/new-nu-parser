@@ -51,6 +51,11 @@ pub enum TypeDecl {
     // In the future, we may have type aliases, user-defined classes, etc.
 }
 
+#[derive(Debug, Clone)]
+pub struct CallResolution {
+    pub decl_id: DeclId,
+}
+
 /// Fields extracted from Resolver
 pub struct NameBindings {
     pub scope: Vec<Frame>,
@@ -62,6 +67,7 @@ pub struct NameBindings {
     pub decls: Vec<Declaration>,
     pub decl_nodes: Vec<NodeId>,
     pub decl_resolution: HashMap<NodeId, DeclId>,
+    pub call_resolution: HashMap<NodeId, CallResolution>,
     pub errors: Vec<SourceError>,
 }
 
@@ -77,6 +83,7 @@ impl NameBindings {
             decls: vec![],
             decl_nodes: vec![],
             decl_resolution: HashMap::new(),
+            call_resolution: HashMap::new(),
             errors: vec![],
         }
     }
@@ -110,6 +117,8 @@ pub struct Resolver<'a> {
     pub decl_nodes: Vec<NodeId>,
     /// Mapping of decl's name node -> Command
     pub decl_resolution: HashMap<NodeId, DeclId>,
+    /// Mapping of caller node -> Resolved callee node.
+    pub call_resolution: HashMap<NodeId, CallResolution>,
     /// Errors encountered during name binding
     pub errors: Vec<SourceError>,
 }
@@ -127,6 +136,7 @@ impl<'a> Resolver<'a> {
             decls: vec![],
             decl_nodes: vec![],
             decl_resolution: HashMap::new(),
+            call_resolution: HashMap::new(),
             errors: vec![],
         }
     }
@@ -142,6 +152,7 @@ impl<'a> Resolver<'a> {
             decls: self.decls,
             decl_nodes: self.decl_nodes,
             decl_resolution: self.decl_resolution,
+            call_resolution: self.call_resolution,
             errors: self.errors,
         }
     }

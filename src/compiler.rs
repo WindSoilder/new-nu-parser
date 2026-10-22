@@ -5,7 +5,7 @@ use crate::parser::{
     StringInterp, Table, TypeArgs,
 };
 use crate::protocol::{Command, Declaration};
-use crate::resolver::{Frame, NameBindings, TypeDecl, Variable};
+use crate::resolver::{CallResolution, Frame, NameBindings, TypeDecl, Variable};
 use crate::typechecker::Types;
 use std::collections::HashMap;
 
@@ -91,6 +91,8 @@ pub struct Compiler {
     pub decl_nodes: Vec<NodeId>,
     /// Mapping of decl's name node -> Command
     pub decl_resolution: HashMap<NodeId, DeclId>,
+    /// Mapping of caller node -> Resolved callee node.
+    pub call_resolution: HashMap<NodeId, CallResolution>,
     /// Mapping of builtin's name -> Command
     pub builtins: Vec<Box<dyn Command>>,
 
@@ -142,6 +144,7 @@ impl Compiler {
             decls: vec![],
             decl_nodes: vec![],
             decl_resolution: HashMap::new(),
+            call_resolution: HashMap::new(),
             builtins,
 
             // variables: vec![],

@@ -856,7 +856,8 @@ impl<'a> Typechecker<'a> {
     }
 
     fn typecheck_call(&mut self, parts: &[NodeId], node_id: NodeId) -> TypeId {
-        if let Some(decl_id) = self.compiler.decl_resolution.get(&node_id) {
+        if let Some(call_resolution) = self.compiler.call_resolution.get(&node_id) {
+            let decl_id = call_resolution.decl_id;
             let num_name_parts = self.compiler.decls[decl_id.get()].name.split(' ').count();
             let decl_node_id = self.compiler.decl_nodes[decl_id.get()];
             let AstNode::Def {
