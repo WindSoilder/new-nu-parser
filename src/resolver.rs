@@ -56,6 +56,12 @@ pub struct CallResolution {
     pub decl_id: DeclId,
 }
 
+impl CallResolution {
+    pub fn new(decl_id: DeclId) -> Self {
+        Self { decl_id }
+    }
+}
+
 /// Fields extracted from Resolver
 pub struct NameBindings {
     pub scope: Vec<Frame>,
@@ -527,7 +533,7 @@ impl<'a> Resolver<'a> {
                     .get(&node_id)
                     .expect("internal error: missing resolved decl");
 
-                self.decl_resolution.insert(unbound_node_id, *decl_id);
+                self.call_resolution.insert(unbound_node_id, CallResolution::new(*decl_id));
                 break;
             }
         }
