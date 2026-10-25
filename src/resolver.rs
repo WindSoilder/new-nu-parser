@@ -2,7 +2,7 @@ use crate::protocol::{Command, Declaration};
 use crate::{
     compiler::Compiler,
     errors::{Severity, SourceError},
-    id::{DeclId, NodeId, PipelineId, ScopeId, TypeDeclId, VarId},
+    id::{DeclId, NodeId, PipelineId, ScopeId, TypeDeclId, VarId, BuiltinId},
     parser::AstNode,
 };
 use std::collections::HashMap;
@@ -51,13 +51,19 @@ pub enum TypeDecl {
     // In the future, we may have type aliases, user-defined classes, etc.
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum Decl {
+    Custom(DeclId),
+    Builtin(BuiltinId),
+}
+
 #[derive(Debug, Clone)]
 pub struct CallResolution {
-    pub decl_id: DeclId,
+    decl_id: Decl,
 }
 
 impl CallResolution {
-    pub fn new(decl_id: DeclId) -> Self {
+    pub fn new(decl_id: Decl) -> Self {
         Self { decl_id }
     }
 }
@@ -533,7 +539,16 @@ impl<'a> Resolver<'a> {
                     .get(&node_id)
                     .expect("internal error: missing resolved decl");
 
-                self.call_resolution.insert(unbound_node_id, CallResolution::new(*decl_id));
+                let call_resolution = self.resolve_custom_call(*decl_id, &parts[n + 1..]);
+                self.call_resolution
+                    .insert(unbound_node_id, call_resolution);
+                break;
+            }
+
+            // TODO: handle for builtin.
+            if let Some(builtin_id) = self.compiler.find_builtin(name) {
+                let call_resolution = self.resolve_builtin_call(builtin_id, &parts[n+1..]);
+                call.call_resolution.insert(unbound_node_id, call_resolution);
                 break;
             }
         }
@@ -544,6 +559,16 @@ impl<'a> Resolver<'a> {
         for part in &parts[max_name_parts..] {
             self.resolve_node(*part);
         }
+    }
+
+    fn resolve_custom_call(&self, decl_id: DeclId, args: &[NodeId]) -> CallResolution {
+        let call_id = Decl::Custom(decl_id);
+        unimplemented!()
+    }
+
+    fn resolve_builtin_call(&self, builtin_id: BuiltinId, args: &[NodeId]) -> CallResolution {
+        let call_id = Decl::Builtin(builtin_id);
+        unimplemented!()
     }
 
     pub fn resolve_block(&mut self, node_id: NodeId, reused_scope: Option<ScopeId>) {

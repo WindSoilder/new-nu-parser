@@ -59,6 +59,9 @@ pub mod marker {
 
     #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct TypeDecl;
+    
+    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct Builtin;
 }
 
 /// Identifies a bottom-level AST node stored in `Compiler::ast_nodes`.
@@ -86,3 +89,4 @@ pub type AllOfId = Id<marker::AllOf>;
 pub use nu_protocol::{DeclId, VarId};
 pub type ScopeId = Id<marker::Scope>;
 pub type TypeDeclId = Id<marker::TypeDecl>;
+pub type BuiltinId = Id<marker::Builtin>;

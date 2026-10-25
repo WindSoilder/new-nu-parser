@@ -1,5 +1,5 @@
 use crate::errors::SourceError;
-use crate::id::{DeclId, NodeId, ScopeId, TypeDeclId, TypeId, VarId};
+use crate::id::{BuiltinId, DeclId, NodeId, ScopeId, TypeDeclId, TypeId, VarId};
 use crate::parser::{
     AstNode, Attributes, Block, Call, InOutTypes, List, Match, Params, Pipeline, Record,
     StringInterp, Table, TypeArgs,
@@ -93,8 +93,10 @@ pub struct Compiler {
     pub decl_resolution: HashMap<NodeId, DeclId>,
     /// Mapping of caller node -> Resolved callee node.
     pub call_resolution: HashMap<NodeId, CallResolution>,
-    /// Mapping of builtin's name -> Command
+
+    /// Mapping of builtin's id-> Command
     pub builtins: Vec<Box<dyn Command>>,
+    pub builtins_map: HashMap<Vec<u8>, BuiltinId>,
 
     // Definitions:
     // indexed by FunId
@@ -115,8 +117,7 @@ impl Default for Compiler {
 
 impl Compiler {
     pub fn new() -> Self {
-        let builtins = Self::get_builtins();
-        Self {
+        let mut compiler = Self {
             spans: vec![],
             ast_nodes: vec![],
             node_types: vec![],
@@ -145,7 +146,8 @@ impl Compiler {
             decl_nodes: vec![],
             decl_resolution: HashMap::new(),
             call_resolution: HashMap::new(),
-            builtins,
+            builtins: vec![],
+            builtins_map: HashMap::new(),
 
             // variables: vec![],
             // functions: vec![],
@@ -153,7 +155,9 @@ impl Compiler {
 
             // call_resolution: HashMap::new(),
             errors: vec![],
-        }
+        };
+        compiler.register_builtins();
+        compiler
     }
 
     pub fn print(&self) {
@@ -505,10 +509,19 @@ impl Compiler {
         &self.type_args[type_args_id.get()]
     }
 
-    fn get_builtins() -> Vec<Box<dyn Command>> {
+    fn register_builtins(&mut self) {
         use crate::protocol::command::{Def, Use};
-        let builtins: Vec<Box<dyn Command>> = vec![Box::new(Def), Box::new(Use)];
 
-        builtins
+        let builtins: Vec<Box<dyn Command>> = vec![Box::new(Def), Box::new(Use)];
+        for builtin_cmd in builtins {
+            let name = builtin_cmd.name().as_bytes().to_vec();
+            self.builtins.push(builtin_cmd);
+            let id = BuiltinId::new(self.builtins.len() - 1);
+            self.builtins_map.insert(name, id);
+        }
+    }
+
+    pub fn find_builtin(&self, name: &[u8]) -> Option<BuiltinId> {
+        self.builtins_map.get(name).map(|x| *x)
     }
 }
