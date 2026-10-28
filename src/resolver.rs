@@ -2,7 +2,7 @@ use crate::protocol::{Command, Declaration};
 use crate::{
     compiler::Compiler,
     errors::{Severity, SourceError},
-    id::{DeclId, NodeId, PipelineId, ScopeId, TypeDeclId, VarId, BuiltinId},
+    id::{BuiltinId, DeclId, NodeId, PipelineId, ScopeId, TypeDeclId, VarId},
     parser::AstNode,
 };
 use std::collections::HashMap;
@@ -539,7 +539,7 @@ impl<'a> Resolver<'a> {
                     .get(&node_id)
                     .expect("internal error: missing resolved decl");
 
-                let call_resolution = self.resolve_custom_call(*decl_id, &parts[n + 1..]);
+                let call_resolution = self.resolve_custom_call(*decl_id, *node_id, &parts[n + 1..]);
                 self.call_resolution
                     .insert(unbound_node_id, call_resolution);
                 break;
@@ -547,8 +547,9 @@ impl<'a> Resolver<'a> {
 
             // TODO: handle for builtin.
             if let Some(builtin_id) = self.compiler.find_builtin(name) {
-                let call_resolution = self.resolve_builtin_call(builtin_id, &parts[n+1..]);
-                call.call_resolution.insert(unbound_node_id, call_resolution);
+                let call_resolution = self.resolve_builtin_call(builtin_id, &parts[n + 1..]);
+                self.call_resolution
+                    .insert(unbound_node_id, call_resolution);
                 break;
             }
         }
@@ -561,8 +562,28 @@ impl<'a> Resolver<'a> {
         }
     }
 
-    fn resolve_custom_call(&self, decl_id: DeclId, args: &[NodeId]) -> CallResolution {
+    fn resolve_custom_call(
+        &self,
+        decl_id: DeclId,
+        node_id: NodeId,
+        args: &[NodeId],
+    ) -> CallResolution {
         let call_id = Decl::Custom(decl_id);
+        let AstNode::Def {
+            params,
+            ..
+        } = self.compiler.ast_nodes[node_id.get()] else {
+            panic!("internal error: decl node is not a def");
+        };
+        let params = self.compiler.get_params(params);
+
+        let mut required_pos_params = vec![];
+        let mut optional_pos_params = vec![];
+        for one_param in params.nodes {
+        }
+
+
+
         unimplemented!()
     }
 

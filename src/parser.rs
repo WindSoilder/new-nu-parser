@@ -316,6 +316,8 @@ pub enum AstNode {
         params: NodeId,
     },
     Params(ParamsId),
+    /// For a flag: ty and default should at least one of them exists
+    /// Or else it should be defined as SwitchFlagParam
     FlagParam {
         long: NodeId,
         short: Option<NodeId>,
@@ -323,6 +325,11 @@ pub enum AstNode {
         // it can only exists if `ty` is not None
         custom_completion: Option<NodeId>,
         default: Option<NodeId>,
+    },
+    /// A switch is a special type flag which should not take a value, e.g: `--x`
+    SwitchFlagParam {
+        long: NodeId,
+        short: Option<NodeId>,
     },
     PosParam {
         name: NodeId,
@@ -1433,6 +1440,7 @@ impl Parser {
                 }
 
                 let is_flag_param = self.is_dashdash();
+                let mut is_switch_flag = is_flag_param;
                 let is_rest_param = self.is_dotdotdot();
                 let mut is_pos_param_optional = false;
 
@@ -1463,6 +1471,7 @@ impl Parser {
                     };
 
                 let (ty, custom_completion) = if self.is_colon() {
+                    is_switch_flag = false;
                     // We have a type
                     self.colon();
 
@@ -1493,7 +1502,16 @@ impl Parser {
                     |default_val| self.get_span_end(default_val),
                 );
 
-                let param = if is_flag_param {
+                let param = if is_switch_flag {
+                    self.create_node(
+                        AstNode::SwitchFlagParam {
+                            long: name,
+                            short: short_name,
+                        },
+                        name_span.start,
+                        param_span_end
+                    )
+                } else if is_flag_param {
                     self.create_node(
                         AstNode::FlagParam {
                             long: name,
