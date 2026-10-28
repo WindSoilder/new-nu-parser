@@ -5,7 +5,7 @@ use crate::{
     id::{BuiltinId, DeclId, NodeId, PipelineId, ScopeId, TypeDeclId, VarId},
     parser::AstNode,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum FrameType {
@@ -58,13 +58,37 @@ pub enum Decl {
 }
 
 #[derive(Debug, Clone)]
+enum ResolvedArg {
+    RequiedPosParam {
+        param: NodeId,
+        value: NodeId,
+    },
+    FlagParam {
+        param: NodeId,
+        value: Option<NodeId>,
+    },
+    SwitchFlagParam {
+        param: NodeId,
+        is_on: bool,
+    },
+    RestParam {
+        param: NodeId,
+        values: Vec<NodeId>,
+    },
+}
+
+#[derive(Debug, Clone)]
 pub struct CallResolution {
     decl_id: Decl,
+    resolved: Vec<ResolvedArg>,
 }
 
 impl CallResolution {
     pub fn new(decl_id: Decl) -> Self {
-        Self { decl_id }
+        Self {
+            decl_id,
+            resolved: vec![],
+        }
     }
 }
 
@@ -483,12 +507,19 @@ impl<'a> Resolver<'a> {
 
             self.var_resolution.insert(unbound_node_id, *var_id);
         } else {
-            self.errors.push(SourceError {
-                message: format!("variable `{}` not found", String::from_utf8_lossy(var_name)),
-                node_id: unbound_node_id,
-                severity: Severity::Error,
-            })
+            self.error(
+                &format!("variable `{}` not found", String::from_utf8_lossy(var_name)),
+                unbound_node_id,
+            );
         }
+    }
+
+    fn error(&mut self, message: &str, node_id: NodeId) {
+        self.errors.push(SourceError {
+            message: message.to_string(),
+            node_id,
+            severity: Severity::Error,
+        })
     }
 
     pub fn resolve_type(&mut self, unbound_node_id: NodeId) {
@@ -508,11 +539,10 @@ impl<'a> Resolver<'a> {
 
             self.type_resolution.insert(unbound_node_id, *type_id);
         } else {
-            self.errors.push(SourceError {
-                message: format!("type `{}` not found", String::from_utf8_lossy(type_name)),
-                node_id: unbound_node_id,
-                severity: Severity::Error,
-            })
+            self.error(
+                &format!("type `{}` not found", String::from_utf8_lossy(type_name)),
+                unbound_node_id,
+            );
         }
     }
 
@@ -539,7 +569,7 @@ impl<'a> Resolver<'a> {
                     .get(&node_id)
                     .expect("internal error: missing resolved decl");
 
-                let call_resolution = self.resolve_custom_call(*decl_id, *node_id, &parts[n + 1..]);
+                let call_resolution = self.resolve_custom_call(*decl_id, node_id, &parts[n + 1..]);
                 self.call_resolution
                     .insert(unbound_node_id, call_resolution);
                 break;
@@ -569,22 +599,181 @@ impl<'a> Resolver<'a> {
         args: &[NodeId],
     ) -> CallResolution {
         let call_id = Decl::Custom(decl_id);
-        let AstNode::Def {
-            params,
-            ..
-        } = self.compiler.ast_nodes[node_id.get()] else {
+        let AstNode::Def { params, .. } = self.compiler.ast_nodes[node_id.get()] else {
             panic!("internal error: decl node is not a def");
         };
         let params = self.compiler.get_params(params);
 
-        let mut required_pos_params = vec![];
-        let mut optional_pos_params = vec![];
-        for one_param in params.nodes {
+        let mut resolved_args = vec![];
+
+        let mut required = vec![];
+        let mut required_index = 0;
+        let mut optional = vec![];
+        let mut optional_index = 0;
+        // long_flag -> (long_flag, short_flag, node_id)
+        let mut long_flags = HashMap::new();
+        // short_flag -> (long_flag, short_flag, node_id)
+        let mut short_flags = HashMap::new();
+        // long_flag -> (long_flag, short_flag, node_id)
+        let mut long_switch_flags = HashMap::new();
+        // short_flag -> (long_flag, short_flag, node_id)
+        let mut short_switch_flags = HashMap::new();
+        let mut has_rest_param = false;
+        for one_param in &params.nodes {
+            match self.compiler.ast_nodes[one_param.get()] {
+                AstNode::PosParam { is_optional, .. } => {
+                    if is_optional {
+                        optional.push(one_param);
+                    } else {
+                        required.push(one_param);
+                    }
+                }
+                AstNode::FlagParam { long, short, .. } => {
+                    let long_name = self.compiler.get_span_contents(long).to_vec();
+                    let short_name = short.map(|x| self.compiler.get_span_contents(x).to_vec());
+                    long_flags.insert(long_name, (long_name, short_name, one_param));
+                    short_flags.insert(short_name, (long_name, short_name, one_param));
+                }
+                AstNode::RestParam { .. } => {
+                    if !has_rest_param {
+                        has_rest_param = true;
+                    } else {
+                        self.error("multiple rest params are not allowed", *one_param);
+                    }
+                }
+                AstNode::SwitchFlagParam { long, short } => {
+                    let long_name = self.compiler.get_span_contents(*one_param).to_vec();
+                    let short_name = short.map(|x| self.compiler.get_span_contents(x).to_vec());
+                    long_switch_flags.insert(long_name, (long_name, short_name, one_param));
+                    short_switch_flags.insert(short_name, (long_name, short_name, one_param));
+                }
+                _ => panic!("internal error: {} is not a param", one_param.get()),
+            }
         }
 
-
-
-        unimplemented!()
+        let args_len = args.len();
+        let mut args_index = 0;
+        while args_index < args_len {
+            let arg_node_id = args[args_index];
+            let arg = self.compiler.ast_nodes[arg_node_id.get()];
+            match arg {
+                AstNode::FlagLong(flag_name) => {
+                    let name = self.compiler.get_span_contents(flag_name).to_vec();
+                    // is it a switch or a flag with a value?
+                    match long_switch_flags.remove(&name) {
+                        Some((long_flag, short_flag, param_node_id)) => {
+                            resolved_args.push(ResolvedArg::SwitchFlagParam {
+                                param: param_node_id,
+                                is_on: false,
+                            });
+                            short_switch_flags.remove(&short_flag);
+                        }
+                        None => match long_flags.remove(&name) {
+                            Some((long_flag, short_flag, param_node_id)) => {
+                                short_flags.remove(&short_flag);
+                                args_index += 1;
+                                if args_index < args_len {
+                                    let value_node_id = args[args_index];
+                                    resolved_args.push(ResolvedArg::FlagParam {
+                                        param: *param_node_id,
+                                        value: Some(value_node_id),
+                                    });
+                                } else {
+                                    self.error(
+                                        &format!(
+                                            "flag `{}` requires a value, but none was provided",
+                                            String::from_utf8_lossy(&name)
+                                        ),
+                                        flag_name,
+                                    );
+                                }
+                            }
+                            None => {
+                                self.error(
+                                    &format!(
+                                        "flag `{}` not found in command",
+                                        String::from_utf8_lossy(&name)
+                                    ),
+                                    flag_name,
+                                );
+                            }
+                        },
+                    }
+                }
+                AstNode::FlagShort(flag_name) => {
+                    let name = self.compiler.get_span_contents(flag_name).to_vec();
+                    // is it a switch or a flag with a value?
+                    match short_switch_flags.remove(&name) {
+                        Some((long_flag, short_flag, param_node_id)) => {
+                            resolved_args.push(ResolvedArg::SwitchFlagParam {
+                                param: param_node_id,
+                                is_on: true,
+                            });
+                            long_switch_flags.remove(&long_flag);
+                        }
+                        None => match short_flags.remove(&Some(name)) {
+                            Some((long_flag, short_flag, param_node_id)) => {
+                                long_flags.remove(&long_flag);
+                                args_index += 1;
+                                if args_index < args_len {
+                                    let value_node_id = args[args_index];
+                                    resolved_args.push(ResolvedArg::FlagParam {
+                                        param: *param_node_id,
+                                        value: Some(value_node_id),
+                                    });
+                                } else {
+                                    self.error(
+                                        &format!(
+                                            "flag `{}` requires a value, but none was provided",
+                                            String::from_utf8_lossy(&name)
+                                        ),
+                                        flag_name,
+                                    );
+                                }
+                            }
+                            None => {
+                                self.error(
+                                    &format!(
+                                        "flag `{}` not found in command",
+                                        String::from_utf8_lossy(&name)
+                                    ),
+                                    flag_name,
+                                );
+                            }
+                        },
+                    }
+                }
+                AstNode::FlagShortGroup(flag_names) => {
+                    let flag_names =
+                        String::from_utf8_lossy(self.compiler.get_span_contents(flag_names));
+                    for one_flag in flag_names.chars() {
+                        let one_flag_bytes = one_flag.to_string().into_bytes();
+                        match short_switch_flags.remove(&Some(one_flag_bytes)) {
+                            Some((long_flag, short_flag, param_node_id)) => {
+                                long_switch_flags.remove(&long_flag);
+                                resolved_args.push(ResolvedArg::SwitchFlagParam {
+                                    param: *param_node_id,
+                                    is_on: true,
+                                })
+                            }
+                            None => {
+                                self.error(
+                                    &format!("flag `{}` not found in command", one_flag),
+                                    arg_node_id,
+                                );
+                            }
+                        }
+                    }
+                }
+                value => {
+                    // TODO: fill the positional argument logic.
+                }
+            }
+        }
+        CallResolution {
+            decl_id: call_id,
+            resolved: resolved_args,
+        }
     }
 
     fn resolve_builtin_call(&self, builtin_id: BuiltinId, args: &[NodeId]) -> CallResolution {
