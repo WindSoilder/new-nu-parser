@@ -7,7 +7,7 @@ use crate::compiler::Compiler;
 use crate::errors::{Severity, SourceError};
 use crate::id::{AllOfId, NodeId, OneOfId, RecordTypeId, TypeDeclId, TypeId, TypeVarId};
 use crate::parser::AstNode;
-use crate::resolver::TypeDecl;
+use crate::resolver::{Decl, TypeDecl};
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
@@ -857,7 +857,10 @@ impl<'a> Typechecker<'a> {
 
     fn typecheck_call(&mut self, parts: &[NodeId], node_id: NodeId) -> TypeId {
         if let Some(call_resolution) = self.compiler.call_resolution.get(&node_id) {
-            let decl_id = call_resolution.decl_id;
+            let Decl::Custom(decl_id) = call_resolution.decl_id else {
+                unimplemented!("doesn't implement for bulit in id yet")
+            };
+
             let num_name_parts = self.compiler.decls[decl_id.get()].name.split(' ').count();
             let decl_node_id = self.compiler.decl_nodes[decl_id.get()];
             let AstNode::Def {
