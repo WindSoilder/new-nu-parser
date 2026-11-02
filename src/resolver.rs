@@ -334,6 +334,7 @@ impl<'a> Resolver<'a> {
                 new_name,
                 old_name: _,
             } => {
+                println!("debug resolve alias: {:?} -> {:?}", new_name, node_id);
                 self.define_decl(new_name, node_id);
             }
             AstNode::Params(_) => {
@@ -552,11 +553,23 @@ impl<'a> Resolver<'a> {
 
     pub fn resolve_call(&mut self, unbound_node_id: NodeId, parts: &[NodeId]) {
         // Find out the potentially longest command name
-        let max_name_parts = parts
-            .iter()
-            .position(|part| matches!(self.compiler.ast_nodes[part.get()], AstNode::Name))
-            .expect("call does not have any name")
-            + 1;
+        let mut max_name_parts = 0;
+        for p in parts.iter() {
+            if matches!(self.compiler.ast_nodes[p.get()], AstNode::Name) {
+                max_name_parts += 1;
+            } else {
+                break;
+            }
+        }
+        if max_name_parts == 0 {
+            panic!("call does not have any name, node_id: {unbound_node_id:?}");
+        }
+
+        // let max_name_parts = parts
+        //     .iter()
+        //     .position(|part| matches!(self.compiler.ast_nodes[part.get()], AstNode::Name))
+        //     .expect("call does not have any name")
+        //     + 1;
 
         // Try to find the longest matching subcommand
         let first_start = self.compiler.spans[parts[0].get()].start;
@@ -573,6 +586,13 @@ impl<'a> Resolver<'a> {
                     .get(&node_id)
                     .expect("internal error: missing resolved decl");
 
+                println!(
+                    "debug resolve call: {:?} -> {:?}, node_id: {:?}, unbound_node_id: {:?}",
+                    String::from_utf8_lossy(name),
+                    decl_id,
+                    node_id,
+                    unbound_node_id
+                );
                 let call_resolution = self.resolve_custom_call(*decl_id, node_id, &parts[n + 1..]);
                 self.call_resolution
                     .insert(unbound_node_id, call_resolution);

@@ -287,6 +287,7 @@ impl Compiler {
         self.decls.extend(name_bindings.decls);
         self.decl_nodes.extend(name_bindings.decl_nodes);
         self.decl_resolution.extend(name_bindings.decl_resolution);
+        self.call_resolution.extend(name_bindings.call_resolution);
         self.errors.extend(name_bindings.errors);
     }
 
