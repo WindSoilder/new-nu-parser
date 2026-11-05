@@ -140,6 +140,7 @@ impl<'a> Typechecker<'a> {
                 Type::String,
                 Type::Binary,
                 Type::Closure,
+                Type::CellPath,
                 Type::List(ANY_TYPE),
                 Type::Stream(BINARY_TYPE),
                 Type::Error,
@@ -1146,6 +1147,7 @@ impl<'a> Typechecker<'a> {
             Type::Bool => BOOL_TYPE,
             Type::String => STRING_TYPE,
             Type::Closure => CLOSURE_TYPE,
+            Type::CellPath => CELLPATH_TYPE,
             Type::List(ANY_TYPE) => LIST_ANY_TYPE,
             _ => {
                 self.types.push(ty);

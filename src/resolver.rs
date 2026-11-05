@@ -593,9 +593,12 @@ impl<'a> Resolver<'a> {
                     node_id,
                     unbound_node_id
                 );
-                let call_resolution = self.resolve_custom_call(*decl_id, node_id, &parts[n + 1..]);
-                self.call_resolution
-                    .insert(unbound_node_id, call_resolution);
+                if let AstNode::Def { .. } = self.compiler.ast_nodes[node_id.get()] {
+                    let call_resolution =
+                        self.resolve_custom_call(*decl_id, node_id, &parts[n + 1..]);
+                    self.call_resolution
+                        .insert(unbound_node_id, call_resolution);
+                }
                 break;
             }
 
