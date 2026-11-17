@@ -137,7 +137,7 @@ impl Default for NameBindings {
 
 pub struct Resolver<'a> {
     // Immutable reference to a compiler after the first parsing pass
-    compiler: &'a Compiler,
+    pub compiler: &'a Compiler,
 
     /// All scope frames ever entered, indexed by ScopeId
     pub scope: Vec<Frame>,
@@ -312,7 +312,7 @@ impl<'a> Resolver<'a> {
                 wrapped: _,
             } => {
                 // define the command before the block to enable recursive calls
-                self.define_decl(name, node_id);
+                self.define_custom_decl(name, params, node_id);
 
                 // making sure the def parameters and body end up in the same scope frame
                 self.enter_scope(block);
@@ -334,7 +334,6 @@ impl<'a> Resolver<'a> {
                 new_name,
                 old_name: _,
             } => {
-                println!("debug resolve alias: {:?} -> {:?}", new_name, node_id);
                 self.define_decl(new_name, node_id);
             }
             AstNode::Params(_) => {
@@ -519,7 +518,7 @@ impl<'a> Resolver<'a> {
         }
     }
 
-    fn error(&mut self, message: &str, node_id: NodeId) {
+    pub(crate) fn error(&mut self, message: &str, node_id: NodeId) {
         self.errors.push(SourceError {
             message: message.to_string(),
             node_id,
@@ -950,6 +949,29 @@ impl<'a> Resolver<'a> {
 
         // let the definition of a type also count as its use
         self.type_resolution.insert(type_name_id, type_id);
+    }
+
+    pub fn define_custom_decl(&mut self, decl_name_id: NodeId, params: NodeId, decl_node_id: NodeId) {
+        // TODO: Deduplicate code with define_variable()
+        let decl_name = self.compiler.get_span_contents(decl_name_id);
+        let decl_name = trim_decl_name(decl_name).to_vec();
+        let decl = Declaration::new_custom(String::from_utf8_lossy(&decl_name).to_string(), params, self);
+
+        let current_scope_id = self
+            .scope_stack
+            .last()
+            .expect("internal error: missing scope frame id");
+
+        self.scope[current_scope_id.get()]
+            .decls
+            .insert(decl_name, decl_name_id);
+
+        self.decls.push(decl);
+        self.decl_nodes.push(decl_node_id);
+
+        let decl_id = DeclId::new(self.decls.len() - 1);
+        // let the definition of a decl also count as its use
+        self.decl_resolution.insert(decl_name_id, decl_id);
     }
 
     pub fn define_decl(&mut self, decl_name_id: NodeId, decl_node_id: NodeId) {
