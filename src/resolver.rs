@@ -1,11 +1,11 @@
-use crate::protocol::{Command, Declaration, DeclarationInfo};
+use crate::protocol::{Declaration, DeclarationInfo};
 use crate::{
     compiler::Compiler,
     errors::{Severity, SourceError},
     id::{BuiltinId, DeclId, NodeId, PipelineId, ScopeId, TypeDeclId, VarId},
     parser::AstNode,
 };
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum FrameType {
@@ -361,6 +361,12 @@ impl<'a> Resolver<'a> {
                                 self.resolve_node(ty);
                             }
                         }
+                        AstNode::SwitchFlagParam { long, .. } => {
+                            let AstNode::FlagLong(long) = self.compiler.ast_nodes[long.get()] else {
+                                panic!("internal error: switch flag's long name is not a long flag");
+                            };
+                            self.define_variable(long, false);
+                        }
                         _ => panic!("param is not a param"),
                     }
                 }
@@ -619,82 +625,19 @@ impl<'a> Resolver<'a> {
         args: &[NodeId],
     ) -> CallResolution {
         let call_id = Decl::Custom(decl_id);
-        let DeclarationInfo::Custom(custom_info) = &self.decls[decl_id.get()].info else {
-            panic!("internal error: decl is not a custom decl");
+        let mut custom_info = match &self.decls[decl_id.get()].info {
+            DeclarationInfo::Custom(custom_info) => custom_info.clone(),
+            DeclarationInfo::Default => panic!("internal error: decl is not a custom decl"),
         };
 
         let mut resolved_args = vec![];
 
-        let mut required = vec![];
         let mut required_index = 0;
-        let mut optional = vec![];
         let mut optional_index = 0;
-        let mut meet_optional = false;
-
-        // long_flag -> (long_flag, short_flag, node_id)
-        let mut long_flags = HashMap::new();
-        // short_flag -> (long_flag, short_flag, node_id)
-        let mut short_flags = HashMap::new();
-        // long_flag -> (long_flag, short_flag, node_id)
-        let mut long_switch_flags = HashMap::new();
-        // short_flag -> (long_flag, short_flag, node_id)
-        let mut short_switch_flags = HashMap::new();
-        let mut has_rest_param = false;
-        let mut rest_param = None;
-        let mut rest_args = vec![];
-
-        // TODO: remove those unnecessary clone.
-        // Also the params information for each decl_id should only be built once.
-        for one_param in &params.nodes {
-            match self.compiler.ast_nodes[one_param.get()] {
-                AstNode::PosParam { is_optional, .. } => {
-                    if is_optional {
-                        meet_optional = true;
-                        optional.push(one_param);
-                    } else {
-                        if meet_optional {
-                            self.error(
-                                "can not define require parameter after optional parameters",
-                                *one_param,
-                            )
-                        } else {
-                            required.push(one_param);
-                        }
-                    }
-                }
-                AstNode::FlagParam { long, short, .. } => {
-                    let long_name = self.compiler.get_span_contents(long).to_vec();
-                    let short_name = short.map(|x| self.compiler.get_span_contents(x).to_vec());
-                    long_flags.insert(
-                        long_name.clone(),
-                        (long_name.clone(), short_name.clone(), *one_param),
-                    );
-                    short_flags.insert(short_name.clone(), (long_name, short_name, *one_param));
-                }
-                AstNode::RestParam { .. } => {
-                    if !has_rest_param {
-                        has_rest_param = true;
-                        rest_param = Some(one_param);
-                    } else {
-                        self.error("multiple rest params are not allowed", *one_param);
-                    }
-                }
-                AstNode::SwitchFlagParam { long, short } => {
-                    let long_name = self.compiler.get_span_contents(long).to_vec();
-                    let short_name = short.map(|x| self.compiler.get_span_contents(x).to_vec());
-                    long_switch_flags.insert(
-                        long_name.clone(),
-                        (long_name.clone(), short_name.clone(), *one_param),
-                    );
-                    short_switch_flags
-                        .insert(short_name.clone(), (long_name, short_name, *one_param));
-                }
-                _ => panic!("internal error: {} is not a param", one_param.get()),
-            }
-        }
 
         let args_len = args.len();
         let mut args_index = 0;
+        let mut rest_args = vec![];
         while args_index < args_len {
             let arg_node_id = args[args_index];
             let arg = self.compiler.ast_nodes[arg_node_id.get()];
@@ -702,22 +645,26 @@ impl<'a> Resolver<'a> {
                 AstNode::FlagLong(flag_name) => {
                     let name = self.compiler.get_span_contents(flag_name).to_vec();
                     // is it a switch or a flag with a value?
-                    match long_switch_flags.remove(&name) {
-                        Some((_, short_flag, param_node_id)) => {
+                    match custom_info
+                        .switch_flags
+                        .iter()
+                        .position(|flag| flag.long == name)
+                    {
+                        Some(index) => {
+                            let flag = custom_info.switch_flags.remove(index);
                             resolved_args.push(ResolvedArg::SwitchFlagParam {
-                                param: param_node_id,
+                                param: flag.param,
                                 is_on: false,
                             });
-                            short_switch_flags.remove(&short_flag);
                         }
-                        None => match long_flags.remove(&name) {
-                            Some((_, short_flag, param_node_id)) => {
-                                short_flags.remove(&short_flag);
+                        None => match custom_info.flags.iter().position(|flag| flag.long == name) {
+                            Some(index) => {
+                                let flag = custom_info.flags.remove(index);
                                 args_index += 1;
                                 if args_index < args_len {
                                     let value_node_id = args[args_index];
                                     resolved_args.push(ResolvedArg::FlagParam {
-                                        param: param_node_id,
+                                        param: flag.param,
                                         value: Some(value_node_id),
                                     });
                                 } else {
@@ -744,23 +691,36 @@ impl<'a> Resolver<'a> {
                 }
                 AstNode::FlagShort(flag_name) => {
                     let name = self.compiler.get_span_contents(flag_name).to_vec();
+                    let short_name = std::str::from_utf8(&name)
+                        .expect("the contents is a valid utf8 string")
+                        .chars()
+                        .next()
+                        .expect("the contents is not empty");
                     // is it a switch or a flag with a value?
-                    match short_switch_flags.remove(&Some(name.clone())) {
-                        Some((long_flag, _, param_node_id)) => {
+                    match custom_info
+                        .switch_flags
+                        .iter()
+                        .position(|flag| flag.short == Some(short_name))
+                    {
+                        Some(index) => {
+                            let flag = custom_info.switch_flags.remove(index);
                             resolved_args.push(ResolvedArg::SwitchFlagParam {
-                                param: param_node_id,
+                                param: flag.param,
                                 is_on: true,
                             });
-                            long_switch_flags.remove(&long_flag);
                         }
-                        None => match short_flags.remove(&Some(name.clone())) {
-                            Some((long_flag, _, param_node_id)) => {
-                                long_flags.remove(&long_flag);
+                        None => match custom_info
+                            .flags
+                            .iter()
+                            .position(|flag| flag.short == Some(short_name))
+                        {
+                            Some(index) => {
+                                let flag = custom_info.flags.remove(index);
                                 args_index += 1;
                                 if args_index < args_len {
                                     let value_node_id = args[args_index];
                                     resolved_args.push(ResolvedArg::FlagParam {
-                                        param: param_node_id,
+                                        param: flag.param,
                                         value: Some(value_node_id),
                                     });
                                 } else {
@@ -789,12 +749,15 @@ impl<'a> Resolver<'a> {
                     let flag_names =
                         String::from_utf8_lossy(self.compiler.get_span_contents(flag_names));
                     for one_flag in flag_names.chars() {
-                        let one_flag_bytes = one_flag.to_string().into_bytes();
-                        match short_switch_flags.remove(&Some(one_flag_bytes)) {
-                            Some((long_flag, _, param_node_id)) => {
-                                long_switch_flags.remove(&long_flag);
+                        match custom_info
+                            .switch_flags
+                            .iter()
+                            .position(|flag| flag.short == Some(one_flag))
+                        {
+                            Some(index) => {
+                                let flag = custom_info.switch_flags.remove(index);
                                 resolved_args.push(ResolvedArg::SwitchFlagParam {
-                                    param: param_node_id,
+                                    param: flag.param,
                                     is_on: true,
                                 })
                             }
@@ -808,42 +771,38 @@ impl<'a> Resolver<'a> {
                     }
                 }
                 _ => {
-                    if required_index < required.len() {
-                        let param = *required[required_index];
+                    if required_index < custom_info.required.len() {
+                        let param = custom_info.required[required_index];
                         resolved_args.push(ResolvedArg::RequiedPosParam {
                             param,
                             value: arg_node_id,
                         });
                         required_index += 1;
-                    } else if optional_index < optional.len() {
-                        let param = *optional[optional_index];
+                    } else if optional_index < custom_info.optional.len() {
+                        let param = custom_info.optional[optional_index];
                         resolved_args.push(ResolvedArg::OptionalPosParam {
                             param,
                             value: Some(arg_node_id),
                         });
                         optional_index += 1;
+                    } else if custom_info.rest_param.is_some() {
+                        rest_args.push(arg_node_id);
                     } else {
-                        if has_rest_param {
-                            rest_args.push(arg_node_id);
-                        } else {
-                            self.error("too much argumnets provided", arg_node_id);
-                        }
+                        self.error("too much argumnets provided", arg_node_id);
                     }
                 }
             }
+            args_index += 1;
         }
-        if required_index < required.len() {
+        if required_index < custom_info.required.len() {
             self.error("too less arguments provided", decl_node_id);
         } else {
-            for one_option in optional.into_iter().skip(optional_index) {
-                resolved_args.push(ResolvedArg::OptionalPosParam {
-                    param: *one_option,
-                    value: None,
-                })
+            for param in custom_info.optional.into_iter().skip(optional_index) {
+                resolved_args.push(ResolvedArg::OptionalPosParam { param, value: None })
             }
-            if let Some(rest_param) = rest_param {
+            if let Some(param) = custom_info.rest_param {
                 resolved_args.push(ResolvedArg::RestParam {
-                    param: *rest_param,
+                    param,
                     values: rest_args,
                 })
             }

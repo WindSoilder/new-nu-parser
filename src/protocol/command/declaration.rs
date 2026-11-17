@@ -1,9 +1,6 @@
-use std::hash::Hash;
-
 use crate::parser::AstNode;
 use crate::{
-    compiler::Compiler,
-    id::{NodeId, ParamsId},
+    id::NodeId,
     resolver::Resolver,
 };
 
@@ -15,12 +12,14 @@ pub enum DeclarationInfo {
 
 #[derive(PartialEq, Eq, Clone)]
 pub struct Flag {
+    pub param: NodeId,
     pub long: Vec<u8>,
     pub short: Option<char>,
 }
 
 #[derive(PartialEq, Eq, Clone)]
 pub struct SwitchFlag {
+    pub param: NodeId,
     pub long: Vec<u8>,
     pub short: Option<char>,
 }
@@ -48,7 +47,6 @@ impl Declaration {
     pub fn new_custom(name: String, params_id: NodeId, resolver: &mut Resolver) -> Self {
         let mut flags = vec![];
         let mut switch_flags = vec![];
-        let mut has_rest_param = false;
         let mut rest_param = None;
         let mut required = vec![];
         let mut optional = vec![];
@@ -73,8 +71,14 @@ impl Declaration {
                     }
                 }
                 AstNode::FlagParam { long, short, .. } => {
+                    let AstNode::FlagLong(long) = resolver.compiler.ast_nodes[long.get()] else {
+                        panic!("internal error: flag's long name is not a long flag");
+                    };
                     let long_name = resolver.compiler.get_span_contents(long).to_vec();
                     let short_name: Option<char> = short.map(|x| {
+                        let AstNode::FlagShort(x) = resolver.compiler.ast_nodes[x.get()] else {
+                            panic!("internal error: flag's short name is not a short flag");
+                        };
                         std::str::from_utf8(resolver.compiler.get_span_contents(x))
                             .expect("the contents is a valid utf8 string")
                             .chars()
@@ -82,21 +86,27 @@ impl Declaration {
                             .expect("the contents is not empty")
                     });
                     flags.push(Flag {
+                        param: *one_param,
                         long: long_name,
                         short: short_name,
                     });
                 }
                 AstNode::RestParam { .. } => {
-                    if !has_rest_param {
-                        has_rest_param = true;
+                    if rest_param.is_none() {
                         rest_param = Some(*one_param);
                     } else {
                         resolver.error("multiple rest params are not allowed", *one_param);
                     }
                 }
                 AstNode::SwitchFlagParam { long, short } => {
+                    let AstNode::FlagLong(long) = resolver.compiler.ast_nodes[long.get()] else {
+                        panic!("internal error: switch flag's long name is not a long flag");
+                    };
                     let long_name = resolver.compiler.get_span_contents(long).to_vec();
                     let short_name: Option<char> = short.map(|x| {
+                        let AstNode::FlagShort(x) = resolver.compiler.ast_nodes[x.get()] else {
+                            panic!("internal error: switch flag's short name is not a short flag");
+                        };
                         std::str::from_utf8(resolver.compiler.get_span_contents(x))
                             .expect("the contents is a valid utf8 string")
                             .chars()
@@ -104,6 +114,7 @@ impl Declaration {
                             .expect("the contents is not empty")
                     });
                     switch_flags.push(SwitchFlag {
+                        param: *one_param,
                         long: long_name,
                         short: short_name,
                     });
