@@ -339,7 +339,8 @@ impl<'a> Resolver<'a> {
             AstNode::Params(_) => {
                 let params = self.compiler.get_params(node_id);
                 for param in &params.nodes {
-                    // TODO: handle default, and maybe FlagParam.
+                    // FIXME: In FlagParam and SwitchFlagParam, long contains `--`
+                    // which make resolve defined a wrong variable.  Should fix it.
                     match self.compiler.ast_nodes[param.get()] {
                         AstNode::PosParam {
                             name,
