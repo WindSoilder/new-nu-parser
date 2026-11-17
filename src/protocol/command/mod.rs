@@ -67,4 +67,4 @@ impl Clone for Box<dyn Command> {
     }
 }
 
-pub use declaration::Declaration;
+pub use declaration::{Declaration, DeclarationInfo, Flag, SwitchFlag, CustomInfo};

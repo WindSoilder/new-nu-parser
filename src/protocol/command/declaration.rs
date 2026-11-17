@@ -124,6 +124,10 @@ impl Declaration {
             info: DeclarationInfo::Custom(custom_info),
         }
     }
+
+    pub fn is_custom_decl(&self) -> bool {
+        matches!(self.info, DeclarationInfo::Custom(_))
+    }
 }
 
 // Question: should `Declaration` implement `Command` trait?

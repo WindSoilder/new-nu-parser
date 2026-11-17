@@ -1,4 +1,4 @@
-use crate::protocol::{Command, Declaration};
+use crate::protocol::{Command, Declaration, DeclarationInfo};
 use crate::{
     compiler::Compiler,
     errors::{Severity, SourceError},
@@ -585,14 +585,8 @@ impl<'a> Resolver<'a> {
                     .get(&node_id)
                     .expect("internal error: missing resolved decl");
 
-                println!(
-                    "debug resolve call: {:?} -> {:?}, node_id: {:?}, unbound_node_id: {:?}",
-                    String::from_utf8_lossy(name),
-                    decl_id,
-                    node_id,
-                    unbound_node_id
-                );
-                if let AstNode::Def { .. } = self.compiler.ast_nodes[node_id.get()] {
+                let decl = &self.decls[decl_id.get()];
+                if decl.is_custom_decl() {
                     let call_resolution =
                         self.resolve_custom_call(*decl_id, node_id, &parts[n + 1..]);
                     self.call_resolution
@@ -625,10 +619,9 @@ impl<'a> Resolver<'a> {
         args: &[NodeId],
     ) -> CallResolution {
         let call_id = Decl::Custom(decl_id);
-        let AstNode::Def { params, .. } = self.compiler.ast_nodes[decl_node_id.get()] else {
-            panic!("internal error: decl node is not a def");
+        let DeclarationInfo::Custom(custom_info) = &self.decls[decl_id.get()].info else {
+            panic!("internal error: decl is not a custom decl");
         };
-        let params = self.compiler.get_params(params);
 
         let mut resolved_args = vec![];
 
