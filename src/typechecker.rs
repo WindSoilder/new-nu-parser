@@ -271,6 +271,45 @@ impl<'a> Typechecker<'a> {
                     self.set_node_type_id(node_id, ANY_TYPE);
                 }
             }
+            AstNode::FlagParam { long, ty, .. } => {
+                let AstNode::FlagLong(long) = self.compiler.ast_nodes[long.get()] else {
+                    panic!("internal error: switch flag's long name is not a long flag");
+                };
+                if let Some(ty) = ty {
+                    let ty_id = self.typecheck_type(ty);
+
+                    let var_id = self
+                        .compiler
+                        .var_resolution
+                        .get(&long)
+                        .expect("missing resolved variable");
+                    self.variable_types[var_id.get()] = ty_id;
+                    self.set_node_type_id(node_id, ty_id);
+                } else {
+                    self.set_node_type_id(node_id, ANY_TYPE);
+                }
+            }
+            AstNode::SwitchFlagParam { long, .. } => {
+                let AstNode::FlagLong(_) = self.compiler.ast_nodes[long.get()] else {
+                    panic!("internal error: switch flag's long name is not a long flag");
+                };
+                self.set_node_type_id(node_id, ANY_TYPE);
+            }
+            AstNode::RestParam { name, ty, .. } => {
+                if let Some(ty) = ty {
+                    let ty_id = self.typecheck_type(ty);
+
+                    let var_id = self
+                        .compiler
+                        .var_resolution
+                        .get(&name)
+                        .expect("missing resolved variable");
+                    self.variable_types[var_id.get()] = ty_id;
+                    self.set_node_type_id(node_id, ty_id);
+                } else {
+                    self.set_node_type_id(node_id, ANY_TYPE);
+                }
+            }
             AstNode::TypeArgs(_) => {
                 for arg in &self.compiler.get_type_args(node_id).args {
                     self.typecheck_type(*arg);
@@ -466,6 +505,13 @@ impl<'a> Typechecker<'a> {
                 self.typecheck_node(block);
                 CLOSURE_TYPE
             }
+            AstNode::StringInterp(string_interp) => {
+                let string_interp = &self.compiler.string_interps[string_interp.get()];
+                for part in &string_interp.parts {
+                    self.typecheck_expr(*part, TOP_TYPE);
+                }
+                STRING_TYPE
+            }
             AstNode::BinaryOp { lhs, op, rhs } => self.typecheck_binary_op(lhs, op, rhs),
             AstNode::Variable => {
                 let var_id = self
@@ -568,6 +614,7 @@ impl<'a> Typechecker<'a> {
                 | AstNode::If { .. }
                 | AstNode::Call(_)
                 | AstNode::Match(_)
+                | AstNode::StringInterp(_)
         )
     }
 

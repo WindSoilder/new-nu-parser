@@ -284,6 +284,12 @@ impl<'a> Resolver<'a> {
         // TODO: Move node_id param to the end, same as in typechecker
         match self.compiler.ast_nodes[node_id.get()] {
             AstNode::Variable => self.resolve_variable(node_id),
+            AstNode::StringInterp(string_interp_id) => {
+                let string_interp = &self.compiler.string_interps[string_interp_id.get()];
+                for part in &string_interp.parts {
+                    self.resolve_node(*part);
+                }
+            }
             AstNode::Call(_) => {
                 let parts = self.compiler.get_call(node_id).parts.clone();
                 self.resolve_call(node_id, &parts)
@@ -339,8 +345,6 @@ impl<'a> Resolver<'a> {
             AstNode::Params(_) => {
                 let params = self.compiler.get_params(node_id);
                 for param in &params.nodes {
-                    // FIXME: In FlagParam and SwitchFlagParam, long contains `--`
-                    // which make resolve defined a wrong variable.  Should fix it.
                     match self.compiler.ast_nodes[param.get()] {
                         AstNode::PosParam {
                             name,
@@ -349,22 +353,18 @@ impl<'a> Resolver<'a> {
                             default: _,
                             is_optional: _,
                         }
-                        | AstNode::FlagParam {
-                            long: name,
-                            short: _,
-                            ty,
-                            custom_completion: _,
-                            default: _,
-                        }
                         | AstNode::RestParam { name, ty, .. } => {
                             self.define_variable(name, false);
                             if let Some(ty) = ty {
                                 self.resolve_node(ty);
                             }
                         }
-                        AstNode::SwitchFlagParam { long, .. } => {
-                            let AstNode::FlagLong(long) = self.compiler.ast_nodes[long.get()] else {
-                                panic!("internal error: switch flag's long name is not a long flag");
+                        AstNode::FlagParam { long, .. } | AstNode::SwitchFlagParam { long, .. } => {
+                            let AstNode::FlagLong(long) = self.compiler.ast_nodes[long.get()]
+                            else {
+                                panic!(
+                                    "internal error: switch flag's long name is not a long flag"
+                                );
                             };
                             self.define_variable(long, false);
                         }
@@ -395,7 +395,7 @@ impl<'a> Resolver<'a> {
             } => {
                 // making sure the for loop variable and body end up in the same scope frame
                 self.enter_scope(block);
-                self.define_variable(variable, false);
+                self.define_variable((variable), false);
                 let for_body_scope = self.exit_scope();
 
                 self.resolve_node(range);
@@ -904,11 +904,20 @@ impl<'a> Resolver<'a> {
         self.type_resolution.insert(type_name_id, type_id);
     }
 
-    pub fn define_custom_decl(&mut self, decl_name_id: NodeId, params: NodeId, decl_node_id: NodeId) {
+    pub fn define_custom_decl(
+        &mut self,
+        decl_name_id: NodeId,
+        params: NodeId,
+        decl_node_id: NodeId,
+    ) {
         // TODO: Deduplicate code with define_variable()
         let decl_name = self.compiler.get_span_contents(decl_name_id);
         let decl_name = trim_decl_name(decl_name).to_vec();
-        let decl = Declaration::new_custom(String::from_utf8_lossy(&decl_name).to_string(), params, self);
+        let decl = Declaration::new_custom(
+            String::from_utf8_lossy(&decl_name).to_string(),
+            params,
+            self,
+        );
 
         let current_scope_id = self
             .scope_stack
