@@ -58,25 +58,34 @@ pub enum Decl {
 }
 
 #[derive(Debug, Clone)]
+enum ResolvedParam {
+    /// A parameter declared by a custom command. The node points at the parameter declaration.
+    Custom(NodeId),
+    /// A parameter declared by a builtin command. The index is relative to the corresponding
+    /// `Signature` field selected by the `ResolvedArg` variant.
+    Builtin(usize),
+}
+
+#[derive(Debug, Clone)]
 enum ResolvedArg {
     RequiedPosParam {
-        param: NodeId,
+        param: ResolvedParam,
         value: NodeId,
     },
     FlagParam {
-        param: NodeId,
+        param: ResolvedParam,
         value: Option<NodeId>,
     },
     SwitchFlagParam {
-        param: NodeId,
+        param: ResolvedParam,
         is_on: bool,
     },
     OptionalPosParam {
-        param: NodeId,
+        param: ResolvedParam,
         value: Option<NodeId>,
     },
     RestParam {
-        param: NodeId,
+        param: ResolvedParam,
         values: Vec<NodeId>,
     },
 }
@@ -604,7 +613,8 @@ impl<'a> Resolver<'a> {
 
             // TODO: handle for builtin.
             if let Some(builtin_id) = self.compiler.find_builtin(name) {
-                let call_resolution = self.resolve_builtin_call(builtin_id, &parts[n + 1..]);
+                let call_resolution =
+                    self.resolve_builtin_call(builtin_id, unbound_node_id, &parts[n + 1..]);
                 self.call_resolution
                     .insert(unbound_node_id, call_resolution);
                 break;
@@ -654,7 +664,7 @@ impl<'a> Resolver<'a> {
                         Some(index) => {
                             let flag = custom_info.switch_flags.remove(index);
                             resolved_args.push(ResolvedArg::SwitchFlagParam {
-                                param: flag.param,
+                                param: ResolvedParam::Custom(flag.param),
                                 is_on: false,
                             });
                         }
@@ -665,7 +675,7 @@ impl<'a> Resolver<'a> {
                                 if args_index < args_len {
                                     let value_node_id = args[args_index];
                                     resolved_args.push(ResolvedArg::FlagParam {
-                                        param: flag.param,
+                                        param: ResolvedParam::Custom(flag.param),
                                         value: Some(value_node_id),
                                     });
                                 } else {
@@ -706,7 +716,7 @@ impl<'a> Resolver<'a> {
                         Some(index) => {
                             let flag = custom_info.switch_flags.remove(index);
                             resolved_args.push(ResolvedArg::SwitchFlagParam {
-                                param: flag.param,
+                                param: ResolvedParam::Custom(flag.param),
                                 is_on: true,
                             });
                         }
@@ -721,7 +731,7 @@ impl<'a> Resolver<'a> {
                                 if args_index < args_len {
                                     let value_node_id = args[args_index];
                                     resolved_args.push(ResolvedArg::FlagParam {
-                                        param: flag.param,
+                                        param: ResolvedParam::Custom(flag.param),
                                         value: Some(value_node_id),
                                     });
                                 } else {
@@ -758,7 +768,7 @@ impl<'a> Resolver<'a> {
                             Some(index) => {
                                 let flag = custom_info.switch_flags.remove(index);
                                 resolved_args.push(ResolvedArg::SwitchFlagParam {
-                                    param: flag.param,
+                                    param: ResolvedParam::Custom(flag.param),
                                     is_on: true,
                                 })
                             }
@@ -775,14 +785,14 @@ impl<'a> Resolver<'a> {
                     if required_index < custom_info.required.len() {
                         let param = custom_info.required[required_index];
                         resolved_args.push(ResolvedArg::RequiedPosParam {
-                            param,
+                            param: ResolvedParam::Custom(param),
                             value: arg_node_id,
                         });
                         required_index += 1;
                     } else if optional_index < custom_info.optional.len() {
                         let param = custom_info.optional[optional_index];
                         resolved_args.push(ResolvedArg::OptionalPosParam {
-                            param,
+                            param: ResolvedParam::Custom(param),
                             value: Some(arg_node_id),
                         });
                         optional_index += 1;
@@ -799,11 +809,14 @@ impl<'a> Resolver<'a> {
             self.error("too less arguments provided", decl_node_id);
         } else {
             for param in custom_info.optional.into_iter().skip(optional_index) {
-                resolved_args.push(ResolvedArg::OptionalPosParam { param, value: None })
+                resolved_args.push(ResolvedArg::OptionalPosParam {
+                    param: ResolvedParam::Custom(param),
+                    value: None,
+                })
             }
             if let Some(param) = custom_info.rest_param {
                 resolved_args.push(ResolvedArg::RestParam {
-                    param,
+                    param: ResolvedParam::Custom(param),
                     values: rest_args,
                 })
             }
@@ -814,9 +827,218 @@ impl<'a> Resolver<'a> {
         }
     }
 
-    fn resolve_builtin_call(&self, builtin_id: BuiltinId, args: &[NodeId]) -> CallResolution {
-        let call_id = Decl::Builtin(builtin_id);
-        unimplemented!()
+    fn resolve_builtin_call(
+        &mut self,
+        builtin_id: BuiltinId,
+        call_node_id: NodeId,
+        args: &[NodeId],
+    ) -> CallResolution {
+        let signature = self.compiler.builtins[builtin_id.get()].signature();
+        let mut resolved_args = vec![];
+        let mut seen_named = vec![false; signature.named.len()];
+        let mut required_index = 0;
+        let mut optional_index = 0;
+        let mut rest_args = vec![];
+        let mut args_index = 0;
+
+        while args_index < args.len() {
+            let arg_node_id = args[args_index];
+            match self.compiler.ast_nodes[arg_node_id.get()] {
+                AstNode::FlagLong(flag_name) => {
+                    let name = self.compiler.get_span_contents(flag_name);
+                    let flag_index = std::str::from_utf8(name).ok().and_then(|name| {
+                        signature
+                            .named
+                            .iter()
+                            .enumerate()
+                            .position(|(index, flag)| !seen_named[index] && flag.long == name)
+                    });
+
+                    if let Some(flag_index) = flag_index {
+                        let flag = &signature.named[flag_index];
+                        seen_named[flag_index] = true;
+                        if flag.arg.is_some() {
+                            args_index += 1;
+                            if let Some(&value) = args.get(args_index) {
+                                resolved_args.push(ResolvedArg::FlagParam {
+                                    param: ResolvedParam::Builtin(flag_index),
+                                    value: Some(value),
+                                });
+                            } else {
+                                self.error(
+                                    &format!(
+                                        "flag `{}` requires a value, but none was provided",
+                                        String::from_utf8_lossy(name)
+                                    ),
+                                    flag_name,
+                                );
+                            }
+                        } else {
+                            resolved_args.push(ResolvedArg::SwitchFlagParam {
+                                param: ResolvedParam::Builtin(flag_index),
+                                is_on: false,
+                            });
+                        }
+                    } else {
+                        self.error(
+                            &format!(
+                                "flag `{}` not found in command",
+                                String::from_utf8_lossy(name)
+                            ),
+                            flag_name,
+                        );
+                    }
+                }
+                AstNode::FlagShort(flag_name) => {
+                    let name = self.compiler.get_span_contents(flag_name);
+                    let short_name = std::str::from_utf8(name)
+                        .expect("the contents is a valid utf8 string")
+                        .chars()
+                        .next()
+                        .expect("the contents is not empty");
+                    let flag_index =
+                        signature
+                            .named
+                            .iter()
+                            .enumerate()
+                            .position(|(index, flag)| {
+                                !seen_named[index] && flag.short == Some(short_name)
+                            });
+
+                    if let Some(flag_index) = flag_index {
+                        let flag = &signature.named[flag_index];
+                        seen_named[flag_index] = true;
+                        if flag.arg.is_some() {
+                            args_index += 1;
+                            if let Some(&value) = args.get(args_index) {
+                                resolved_args.push(ResolvedArg::FlagParam {
+                                    param: ResolvedParam::Builtin(flag_index),
+                                    value: Some(value),
+                                });
+                            } else {
+                                self.error(
+                                    &format!(
+                                        "flag `{}` requires a value, but none was provided",
+                                        String::from_utf8_lossy(name)
+                                    ),
+                                    flag_name,
+                                );
+                            }
+                        } else {
+                            resolved_args.push(ResolvedArg::SwitchFlagParam {
+                                param: ResolvedParam::Builtin(flag_index),
+                                is_on: true,
+                            });
+                        }
+                    } else {
+                        self.error(
+                            &format!(
+                                "flag `{}` not found in command",
+                                String::from_utf8_lossy(name)
+                            ),
+                            flag_name,
+                        );
+                    }
+                }
+                AstNode::FlagShortGroup(flag_names) => {
+                    let flag_names =
+                        String::from_utf8_lossy(self.compiler.get_span_contents(flag_names));
+                    for one_flag in flag_names.chars() {
+                        let flag_index =
+                            signature
+                                .named
+                                .iter()
+                                .enumerate()
+                                .position(|(index, flag)| {
+                                    !seen_named[index] && flag.short == Some(one_flag)
+                                });
+                        match flag_index {
+                            Some(flag_index) if signature.named[flag_index].arg.is_none() => {
+                                seen_named[flag_index] = true;
+                                resolved_args.push(ResolvedArg::SwitchFlagParam {
+                                    param: ResolvedParam::Builtin(flag_index),
+                                    is_on: true,
+                                });
+                            }
+                            _ => {
+                                self.error(
+                                    &format!("flag `{one_flag}` not found in command"),
+                                    arg_node_id,
+                                );
+                            }
+                        }
+                    }
+                }
+                _ => self.resolve_builtin_positional(
+                    &signature,
+                    arg_node_id,
+                    &mut required_index,
+                    &mut optional_index,
+                    &mut rest_args,
+                    &mut resolved_args,
+                ),
+            }
+            args_index += 1;
+        }
+
+        if required_index < signature.required_positional.len() {
+            self.error("too less arguments provided", call_node_id);
+        } else {
+            for param in optional_index..signature.optional_positional.len() {
+                resolved_args.push(ResolvedArg::OptionalPosParam {
+                    param: ResolvedParam::Builtin(param),
+                    value: None,
+                });
+            }
+            if signature.rest_positional.is_some() {
+                resolved_args.push(ResolvedArg::RestParam {
+                    param: ResolvedParam::Builtin(0),
+                    values: rest_args,
+                });
+            }
+        }
+
+        for (param, flag) in signature.named.iter().enumerate() {
+            if flag.required && !seen_named[param] {
+                self.error(
+                    &format!("required flag `{}` was not provided", flag.long),
+                    call_node_id,
+                );
+            }
+        }
+
+        CallResolution {
+            decl_id: Decl::Builtin(builtin_id),
+            resolved: resolved_args,
+        }
+    }
+
+    fn resolve_builtin_positional(
+        &mut self,
+        signature: &crate::protocol::Signature,
+        value: NodeId,
+        required_index: &mut usize,
+        optional_index: &mut usize,
+        rest_args: &mut Vec<NodeId>,
+        resolved_args: &mut Vec<ResolvedArg>,
+    ) {
+        if *required_index < signature.required_positional.len() {
+            resolved_args.push(ResolvedArg::RequiedPosParam {
+                param: ResolvedParam::Builtin(*required_index),
+                value,
+            });
+            *required_index += 1;
+        } else if *optional_index < signature.optional_positional.len() {
+            resolved_args.push(ResolvedArg::OptionalPosParam {
+                param: ResolvedParam::Builtin(*optional_index),
+                value: Some(value),
+            });
+            *optional_index += 1;
+        } else if signature.rest_positional.is_some() {
+            rest_args.push(value);
+        } else {
+            self.error("too much argumnets provided", value);
+        }
     }
 
     pub fn resolve_block(&mut self, node_id: NodeId, reused_scope: Option<ScopeId>) {
@@ -1006,5 +1228,140 @@ fn trim_decl_name(name: &[u8]) -> &[u8] {
         &name[1..name.len() - 1]
     } else {
         name
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        compiler::Compiler,
+        lexer::lex,
+        parser::Parser,
+        protocol::{Command, Signature},
+        typechecker::Type,
+    };
+    use nu_protocol::{
+        PipelineData, ShellError,
+        engine::{Call, EngineState, Stack},
+    };
+
+    #[derive(Clone)]
+    struct ResolverTestCommand;
+
+    impl Command for ResolverTestCommand {
+        fn name(&self) -> &str {
+            "resolver-test"
+        }
+
+        fn signature(&self) -> Signature {
+            Signature::new(self.name())
+                .required("required", Type::Any, "")
+                .optional("optional", Type::Any, "")
+                .rest("rest", Type::Any, "")
+                .named("value", Type::Any, "", Some('v'))
+                .switch("switch", "", Some('s'))
+                .required_named("needed", Type::Any, "", Some('n'))
+        }
+
+        fn run(
+            &self,
+            _engine_state: &EngineState,
+            _stack: &mut Stack,
+            _call: &Call,
+            _input: PipelineData,
+        ) -> Result<PipelineData, ShellError> {
+            unreachable!("resolver tests never run commands")
+        }
+    }
+
+    fn resolve_test_call(source: &[u8]) -> (Compiler, NodeId) {
+        let mut compiler = Compiler::new();
+        compiler.add_file("resolver-test.nu", source);
+        let (tokens, lex_error) = lex(source, 0);
+        assert!(lex_error.is_ok());
+        compiler = Parser::new(compiler, tokens).parse();
+        assert!(compiler.errors.is_empty());
+
+        let root = NodeId::new(compiler.ast_nodes.len() - 1);
+        let call = compiler.get_block(root).nodes[0];
+        let builtin_id = BuiltinId::new(compiler.builtins.len());
+        compiler.builtins.push(Box::new(ResolverTestCommand));
+        compiler
+            .builtins_map
+            .insert(b"resolver-test".to_vec(), builtin_id);
+
+        (compiler, call)
+    }
+
+    #[test]
+    fn resolves_builtin_signature_fields() {
+        let (compiler, call) = resolve_test_call(
+            b"resolver-test --value named -s --needed required first second third fourth",
+        );
+        let mut resolver = Resolver::new(&compiler);
+        resolver.resolve();
+
+        assert!(resolver.errors.is_empty());
+        let resolution = &resolver.call_resolution[&call];
+        assert!(matches!(resolution.decl_id, Decl::Builtin(_)));
+        assert_eq!(resolution.resolved.len(), 6);
+        assert!(matches!(
+            resolution.resolved[0],
+            ResolvedArg::FlagParam {
+                param: ResolvedParam::Builtin(0),
+                value: Some(_),
+            }
+        ));
+        assert!(matches!(
+            resolution.resolved[1],
+            ResolvedArg::SwitchFlagParam {
+                param: ResolvedParam::Builtin(1),
+                is_on: true,
+            }
+        ));
+        assert!(matches!(
+            resolution.resolved[2],
+            ResolvedArg::FlagParam {
+                param: ResolvedParam::Builtin(2),
+                value: Some(_),
+            }
+        ));
+        assert!(matches!(
+            resolution.resolved[3],
+            ResolvedArg::RequiedPosParam {
+                param: ResolvedParam::Builtin(0),
+                ..
+            }
+        ));
+        assert!(matches!(
+            resolution.resolved[4],
+            ResolvedArg::OptionalPosParam {
+                param: ResolvedParam::Builtin(0),
+                value: Some(_),
+            }
+        ));
+        assert!(matches!(
+            &resolution.resolved[5],
+            ResolvedArg::RestParam {
+                param: ResolvedParam::Builtin(0),
+                values,
+            } if values.len() == 2
+        ));
+    }
+
+    #[test]
+    fn reports_missing_builtin_requirements() {
+        let (compiler, call) = resolve_test_call(b"resolver-test");
+        let mut resolver = Resolver::new(&compiler);
+        resolver.resolve();
+
+        assert_eq!(resolver.errors.len(), 2);
+        assert_eq!(resolver.errors[0].message, "too less arguments provided");
+        assert_eq!(
+            resolver.errors[1].message,
+            "required flag `needed` was not provided"
+        );
+        assert!(resolver.errors.iter().all(|error| error.node_id == call));
     }
 }

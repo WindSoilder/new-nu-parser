@@ -68,3 +68,4 @@ impl Clone for Box<dyn Command> {
 }
 
 pub use declaration::{Declaration, DeclarationInfo, Flag, SwitchFlag, CustomInfo};
+pub(crate) use signature::Signature;
