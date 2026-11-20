@@ -49,58 +49,48 @@ input_file: tests/sq_string_interp.nu
 ==== SCOPE ====
 0: Frame Scope, node_id: NodeId(41) (empty)
 ==== TYPES ====
-0: unknown
-1: unknown
-2: unknown
-3: unknown
-4: unknown
-5: unknown
-6: unknown
-7: unknown
-8: unknown
-9: unknown
-10: unknown
-11: unknown
-12: unknown
-13: unknown
-14: unknown
-15: unknown
-16: unknown
-17: unknown
-18: unknown
-19: unknown
-20: unknown
-21: unknown
-22: unknown
-23: unknown
-24: unknown
-25: unknown
-26: unknown
-27: unknown
-28: unknown
-29: unknown
-30: unknown
-31: unknown
-32: unknown
-33: unknown
-34: unknown
-35: unknown
-36: unknown
-37: unknown
-38: unknown
-39: unknown
-40: unknown
-41: unknown
-==== TYPE ERRORS ====
-Error (NodeId 0): Expected statement to typecheck, got 'StringInterp(StringInterpId(0))'
-Error (NodeId 2): Expected statement to typecheck, got 'StringInterp(StringInterpId(1))'
-Error (NodeId 4): Expected statement to typecheck, got 'StringInterp(StringInterpId(2))'
-Error (NodeId 7): Expected statement to typecheck, got 'StringInterp(StringInterpId(3))'
-Error (NodeId 11): Expected statement to typecheck, got 'StringInterp(StringInterpId(4))'
-Error (NodeId 15): Expected statement to typecheck, got 'StringInterp(StringInterpId(5))'
-Error (NodeId 25): Expected statement to typecheck, got 'StringInterp(StringInterpId(6))'
-Error (NodeId 29): Expected statement to typecheck, got 'StringInterp(StringInterpId(7))'
-Error (NodeId 40): Expected statement to typecheck, got 'StringInterp(StringInterpId(9))'
+0: string
+1: string
+2: string
+3: string
+4: string
+5: int
+6: string
+7: string
+8: string
+9: int
+10: string
+11: string
+12: string
+13: int
+14: string
+15: string
+16: string
+17: int
+18: forbidden
+19: int
+20: forbidden
+21: int
+22: int
+23: int
+24: string
+25: string
+26: string
+27: string
+28: string
+29: string
+30: string
+31: int
+32: forbidden
+33: int
+34: forbidden
+35: int
+36: int
+37: int
+38: string
+39: string
+40: string
+41: string
 ==== IR ====
 register_count: 0
 file_count: 0

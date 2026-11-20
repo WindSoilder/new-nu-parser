@@ -13,7 +13,7 @@ input_file: tests/def_attributes_same_line_invalid.nu
 6: Name (52 to 59) "old-cmd"
 7: Params(ParamsId(0)) (60 to 62) - sub_nodes is empty
 8: Block(BlockId(0)) (63 to 65) - sub_nodes is empty
-9: Def { attributes: Some(AttributeId(0)), name: NodeId(6), type_params: None, params: NodeId(7), in_out_types: None, block: NodeId(8), env: false, wrapped: false } (0 to 65)
+9: Def { attributes: None, name: NodeId(6), type_params: None, params: NodeId(7), in_out_types: None, block: NodeId(8), env: false, wrapped: false } (48 to 65)
 10: Block(BlockId(1)) (0 to 66) - sub_nodes: 9
 ==== COMPILER ERRORS ====
 Error (NodeId 2): incomplete expression

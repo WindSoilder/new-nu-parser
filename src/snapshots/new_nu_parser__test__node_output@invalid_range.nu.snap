@@ -7,7 +7,10 @@ input_file: tests/invalid_range.nu
 0: Int (0 to 1) "1"
 1: Garbage (2 to 4)
 2: Int (5 to 6) "2"
-3: Block(BlockId(0)) (0 to 7) - sub_nodes: 0,1,2
+3: Int (8 to 9) "3"
+4: Garbage (10 to 12)
+5: Int (13 to 14) "4"
+6: Block(BlockId(0)) (0 to 15) - sub_nodes: 0,1,2,3,4,5
 ==== COMPILER ERRORS ====
 Error (NodeId 1): incomplete expression
-
+Error (NodeId 4): incomplete expression

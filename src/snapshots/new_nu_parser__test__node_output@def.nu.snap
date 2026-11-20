@@ -51,7 +51,7 @@ input_file: tests/def.nu
 44: FlagLong(NodeId(43)) (134 to 139)
 45: Name (141 to 142) "b"
 46: FlagShort(NodeId(45)) (140 to 142)
-47: FlagParam { long: NodeId(44), short: Some(NodeId(46)), ty: None, custom_completion: None, default: None } (134 to 139)
+47: SwitchFlagParam { long: NodeId(44), short: Some(NodeId(46)) } (134 to 139)
 48: Name (145 to 146) "x"
 49: PosParam { name: NodeId(48), ty: None, custom_completion: None, default: None, is_optional: false } (145 to 146)
 50: Name (148 to 149) "y"
@@ -156,17 +156,165 @@ input_file: tests/def.nu
 1: Frame Scope, node_id: NodeId(34)
   variables: [ w: NodeId(1), x: NodeId(3), y: NodeId(7), z: NodeId(17) ]
 2: Frame Scope, node_id: NodeId(60)
-  variables: [ --bar: NodeId(38), --baz: NodeId(44), x: NodeId(48), y: NodeId(50) ]
+  variables: [ bar: NodeId(37), baz: NodeId(43), x: NodeId(48), y: NodeId(50) ]
 3: Frame Scope, node_id: NodeId(68) (empty)
 4: Frame Scope, node_id: NodeId(86)
-  variables: [ --bar: NodeId(72), baz: NodeId(77) ]
+  variables: [ bar: NodeId(71), baz: NodeId(77) ]
 5: Frame Scope, node_id: NodeId(101)
   variables: [ x: NodeId(89), y: NodeId(93) ]
 6: Frame Scope, node_id: NodeId(114)
   variables: [ x: NodeId(104), y: NodeId(108) ]
 7: Frame Scope, node_id: NodeId(143)
   variables: [ name: NodeId(134) ]
-==== SCOPE ERRORS ====
-Error (NodeId 55): variable `bar` not found
-Error (NodeId 56): variable `baz` not found
-Error (NodeId 83): variable `bar` not found
+==== TYPES ====
+0: unknown
+1: unknown
+2: any
+3: unknown
+4: unknown
+5: int
+6: int
+7: unknown
+8: unknown
+9: unknown
+10: unknown
+11: int
+12: forbidden
+13: list<int>
+14: forbidden
+15: list<list<int>>
+16: list<list<int>>
+17: unknown
+18: unknown
+19: unknown
+20: unknown
+21: unknown
+22: unknown
+23: int
+24: unknown
+25: unknown
+26: record<a: any, b: int>
+27: record<a: any, b: int>
+28: forbidden
+29: unknown
+30: int
+31: list<list<int>>
+32: record<a: any, b: int>
+33: list<any>
+34: list<any>
+35: ()
+36: unknown
+37: unknown
+38: unknown
+39: unknown
+40: int
+41: unknown
+42: int
+43: unknown
+44: unknown
+45: unknown
+46: unknown
+47: any
+48: unknown
+49: any
+50: unknown
+51: unknown
+52: int
+53: int
+54: forbidden
+55: int
+56: unknown
+57: unknown
+58: int
+59: list<any>
+60: list<any>
+61: ()
+62: unknown
+63: forbidden
+64: int
+65: int
+66: int
+67: list<int>
+68: list<int>
+69: ()
+70: unknown
+71: unknown
+72: unknown
+73: unknown
+74: int
+75: unknown
+76: int
+77: unknown
+78: unknown
+79: int
+80: unknown
+81: int
+82: forbidden
+83: int
+84: int
+85: list<int>
+86: list<int>
+87: ()
+88: unknown
+89: unknown
+90: unknown
+91: int
+92: int
+93: unknown
+94: unknown
+95: int
+96: int
+97: forbidden
+98: int
+99: int
+100: list<int>
+101: list<int>
+102: ()
+103: unknown
+104: unknown
+105: unknown
+106: int
+107: int
+108: unknown
+109: any
+110: forbidden
+111: int
+112: unknown
+113: list<any>
+114: list<any>
+115: ()
+116: unknown
+117: unknown
+118: unknown
+119: unknown
+120: unknown
+121: unknown
+122: unknown
+123: unknown
+124: unknown
+125: unknown
+126: unknown
+127: unknown
+128: unknown
+129: unknown
+130: unknown
+131: unknown
+132: unknown
+133: unknown
+134: unknown
+135: unknown
+136: string
+137: string
+138: forbidden
+139: string
+140: string
+141: string
+142: string
+143: string
+144: ()
+145: ()
+==== IR ====
+register_count: 0
+file_count: 0
+==== IR ERRORS ====
+Error (NodeId 35): node Def { attributes: None, name: NodeId(0), type_params: None, params: NodeId(28), in_out_types: None, block: NodeId(34), env: false, wrapped: false } not suported yet

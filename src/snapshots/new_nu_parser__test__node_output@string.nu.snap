@@ -6,7 +6,7 @@ input_file: tests/string.nu
 ==== COMPILER ====
 0: String (0 to 13) ""hello world""
 1: String (14 to 27) "'hello world'"
-2: Block(BlockId(0)) (0 to 27) - sub_nodes: 0,1
+2: Block(BlockId(0)) (0 to 28) - sub_nodes: 0,1
 ==== SCOPE ====
 0: Frame Scope, node_id: NodeId(2) (empty)
 ==== TYPES ====
@@ -18,4 +18,3 @@ register_count: 0
 file_count: 0
 ==== IR ERRORS ====
 Error (NodeId 0): node String not suported yet
-
