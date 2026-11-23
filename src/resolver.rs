@@ -665,7 +665,7 @@ impl<'a> Resolver<'a> {
                             let flag = custom_info.switch_flags.remove(index);
                             resolved_args.push(ResolvedArg::SwitchFlagParam {
                                 param: ResolvedParam::Custom(flag.param),
-                                is_on: false,
+                                is_on: true,
                             });
                         }
                         None => match custom_info.flags.iter().position(|flag| flag.long == name) {
@@ -876,7 +876,7 @@ impl<'a> Resolver<'a> {
                         } else {
                             resolved_args.push(ResolvedArg::SwitchFlagParam {
                                 param: ResolvedParam::Builtin(flag_index),
-                                is_on: false,
+                                is_on: true,
                             });
                         }
                     } else {
