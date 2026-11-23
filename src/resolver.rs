@@ -404,7 +404,7 @@ impl<'a> Resolver<'a> {
             } => {
                 // making sure the for loop variable and body end up in the same scope frame
                 self.enter_scope(block);
-                self.define_variable((variable), false);
+                self.define_variable(variable, false);
                 let for_body_scope = self.exit_scope();
 
                 self.resolve_node(range);
